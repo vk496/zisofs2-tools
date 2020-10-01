@@ -34,9 +34,11 @@ The file header has this layout:
       8           7.3.1            @ufs_l           Uncompressed file size (low-order bytes) #uin64_l
      12           7.1.1            @hdr_size        header_size >> 2 (currently 8)
      13           7.1.1            @hdr_bsize       log2(block_size)
-     14           7.3.1            @last_ptr        Last valid pointer before exceding 2^32-1
-     18           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
-     22           (10 bytes)                        Reserved, must be zero
+     14           7.1.1            @alg_strat       Algorithm strategy
+     15           (1 byte)                          Reserved, must be zero
+     16           7.3.1            @last_ptr        Last valid pointer before exceding 2^32-1
+     20           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
+     24           (8 bytes)                         Reserved, must be zero
 
 So its size is 32.
 
@@ -44,6 +46,9 @@ Previous version of ZF used a header of 16 bytes with 4 bytes dedicated to the u
 In order to extend that limitation without breaking legacy software which supports ZF, a #uint64 is
 used with 2 bytes of speration between. Supported files (smaller than 4 GiB) with legacy code (ZISOFSv1)
 will be mapped correctly. Bigger files will have undefined behaviour
+
+The @alg_strat defines the compression algorithm strategy id. If set to 0 (default), each block
+of data will be compressed independently (like done in ZISOFSv1 with zlib). Other values are not allowed for now.
 
 Readers shall be able to handle log2(block_size) values 15, 16 and 17
 i.e. block sizes 32 kB, 64 kB, and 128 kB. Writers must not use other sizes.
