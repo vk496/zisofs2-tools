@@ -1,9 +1,13 @@
 
                         Description of the zisofs2 Format
+                                  Revision 2.0
 
-                   as of zisofs-tools-0.0.1 by Valentín KIVACHUK BURDÁ
-                   and cdrtools-2.01.01a39 by Joerg Schilling
- 
+                   as of zisofs2-tools-0.0.1 by Valentín KIVACHUK BURDÁ
+                   and cdrtools-???? by Joerg Schilling
+
+       For libburnia-project.org by Thomas Schmitt <scdbackup@gmx.net>
+       - distribute freely , please report any errors or ambiguities -
+
                                 1 Oct 2020
 
 
@@ -13,10 +17,12 @@ access. Within a RRIP enhanced ISO 9660 image the format is additionally marked
 by a System Use entry with signature "ZF".
 
 The uncompressed size of a single zisofs compressed file is restricted
-to 16777216 TiB - 1. Larger files shall not be compressed.
+to 256 TiB - 1 byte. Larger files shall not be compressed.
+
 
 
                                 Data Types
+
 ISO 9660:7.3.1 - standard - little endian 4-byte words
 ISO 9660:7.1.1 - standard - unsigned single bytes
 ISO 9660:7.3.3 - standard - 4-byte word in both byte orders, first little endian, then big endian.
@@ -24,6 +30,17 @@ ISO 9660:7.3.3 - standard - 4-byte word in both byte orders, first little endian
 #uin64_h       - custom   - high-order of a 8 byte value stored as 7.3.1
 #uin64         - custom   - 8-byte word in little endian, first #uin64_l, then #uin64_h
 
+                                Supported algorithms
+
+The file header has this layout:
+    @alg_id       @alg_char                Description
+     0            'pz' (70)(7A)            Zlib
+     1            'xz' (78)(7A)            LZMA2 (xz container)
+     2            'l4' (6C)(34)            LZ4
+     3            'zd' (7A)(64)            Zstandard
+     4            'b2' (62)(32)            Bzip2
+
+@alg_id is a 7.1.1 value. @alg_char is 2 ASCII characters stored as 2 bytes
 
 
                                 File Header
@@ -34,8 +51,8 @@ The file header has this layout:
       8           7.3.1            @ufs_l           Uncompressed file size (low-order bytes) #uin64_l
      12           7.1.1            @hdr_size        header_size >> 2 (currently 8)
      13           7.1.1            @hdr_bsize       log2(block_size)
-     14           7.1.1            @alg_strat       Algorithm strategy
-     15           (1 byte)                          Reserved, must be zero
+     14           7.1.1            @alg_id          Algorithm Type
+     15           7.1.1            @alg_strat       Algorithm strategy
      16           7.3.1            @last_ptr        Last valid pointer before exceding 2^32-1
      20           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
      24           (8 bytes)                         Reserved, must be zero
@@ -47,7 +64,7 @@ In order to extend that limitation without breaking legacy software which suppor
 used with 2 bytes of speration between. Supported files (smaller than 4 GiB) with legacy code (ZISOFSv1)
 will be mapped correctly. Bigger files will have undefined behaviour
 
-The @alg_strat defines the compression algorithm strategy id. If set to 0 (default), each block
+The @alg_strat defines the compression algorithm strategy. If set to 0 (default), each block
 of data will be compressed independently (like done in ZISOFSv1 with zlib). Other values are not allowed for now.
 
 Readers shall be able to handle log2(block_size) values 15, 16 and 17
@@ -99,12 +116,13 @@ Its fields are:
 
   [2] "BP 3 - Length" shall specify as an 8-bit number the length in bytes of
       the ZF entry recorded according to ISO 9660:7.1.1.
-      This length is 24 decimal.
+      This length is 25 decimal.
 
   [3] "BP 4 - System Use Entry Version" shall be 2 as in ISO 9660:7.1.1.
 
   [4] "BP 5 to BP 6 - Algorithm"  shall be two chars to indicate the
       compression algorithm. For example, (70)(7A) ("pz")
+      (This is a copy of @alg_char)
 
   [5] "BP 7 - Header Size Div 4" shall specify as an 8-bit number the number of
       4-byte words in the header part of the file data recorded according
@@ -121,22 +139,26 @@ Its fields are:
       as a 32-bit number the low order 32-bits of the 64 bit uncompressed 
       file size represented by the given extent. This field shall be recorded
       according to ISO 9660:7.3.3.
-      (This number is the same as @ufs_l, resp header BP 9
+      (This is a copy of @ufs_l, resp header BP 9
        to BP 12.)
 
   [8] "BP 17 to BP 24 - Virtual Uncompressed File Size High" shall contain
       as a 32-bit number the high order 32-bits of the 64 bit uncompressed 
       file size represented by the given extent. This field shall be recorded
       according to ISO 9660:7.3.3.
-      (This number is the same as @ufs_h)
+      (This is a copy of @ufs_h)
+
+  [9] "BP 25 - Algorithm strategy" shall be 0 as in ISO 9660:7.1.1.
+      (This is a copy of @alg_strat)
+       
 
   | 'Z' | 'F' | LENGTH | 2 | 'p' | 'z' | HEADER SIZE DIV 4 | LOG2 BLOCK SIZE
-  | UNCOMPRESSED SIZE LOW | UNCOMPRESSED SIZE HIGH |
+  | UNCOMPRESSED SIZE LOW | UNCOMPRESSED SIZE HIGH | ALGORITHM STRATEGY |
 
-Example (block size 32 kiB, uncompressed file size = 4,822,678,189,205,111 bytes - ~4822 TB):
-  { 'Z',  "F',   24,    2,  'p',  'z',    8,   15,
-   0x77, 0x66, 0x55, 0x44, 0x44, 0x55, 0x66, 0x77,
-   0x33, 0x22, 0x11, 0x00, 0x00, 0x11, 0x22, 0x33 }
+Example (block size 128 kiB, uncompressed file size = 40 TB):
+  { 'Z',  "F',   24,    2,  'p',  'z',    8,   17,
+   0x00, 0x80, 0xCA, 0x39, 0x39, 0xCA, 0x80, 0x00,
+   0x61, 0x24, 0x00, 0x00, 0x00, 0x00, 0x24, 0x61 }
 
 
 -------------------------------------------------------------------------------
@@ -152,6 +174,9 @@ implemented.
 
 -------------------------------------------------------------------------------
 References:
+
+zisofs2-tools
+  https://github.com/vk496/zisofs2-tools
 
 zisofs-tools
   http://freshmeat.net/projects/zisofs-tools/
