@@ -53,9 +53,8 @@ The file header has this layout:
      13           7.1.1            @hdr_bsize       log2(block_size)
      14           7.1.1            @alg_id          Algorithm Type
      15           7.1.1            @alg_strat       Algorithm strategy
-     16           7.3.1            @last_ptr        Last valid pointer before exceding 2^32-1
-     20           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
-     24           (8 bytes)                         Reserved, must be zero
+     16           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
+     20           (12 bytes)                        Reserved, must be zero
 
 So its size is 32.
 
@@ -79,14 +78,13 @@ size (down to 0). For each output block there is an offset pointer giving
 its byte address in the overall file content. The next block pointer in the
 array tells the start of the next block which begins immediately after the
 end of its predecessor. A final pointer (*eob*) gives the first invalid byte address
-and thus marks the end of the last block.
-
-To support older software, values of ISO 9660:7.3.1 are used to represent the byte address
-until @last_ptr is reached. After, the blocks pointers will use #uint64.
+and thus marks the end of the last block
 
 So there are ceil(input_size / @hdr_bsize) + 1 block pointers.
-They are stored as an array of ISO 9660:7.3.1 and #uint64 values
-directly after the file header, i.e. beginning at byte 32.
+They are stored directly after the file header, i.e. beginning at byte 32, 
+as an array of ISO 9660:7.3.1 for input files with a size smaller than 
+2^32 bytes and #uint64 values for equal or bigger than 2^32 bytes
+
 
 
                                  Data Part

@@ -1,6 +1,7 @@
 from mkzftree2.models.FileObject import FileObject, ZISOFSv2
-import lzma
 import math
+from mkzftree2.compressor import compress_chunk
+from mkzftree2.iso9660 import *
 
 def find_files(source_dir):
     # file_list = []
@@ -10,50 +11,50 @@ def find_files(source_dir):
         elif x.is_dir():
             find_files(x)
 
-def estimate_final_size(final_size, pointer_list):
-    # In the limit case, it would be possible that all addresses
-    # fit in 4bytes, but some of them will not if we add the 
-    # pointer address. We must check the size progressively
-    total_size = 0
-    for n in pointer_list:
-        if n + total_size < 2**32:
-            total_size+=4
-        else:
-            total_size+=8
-
-    return total_size
-
 
 def compress_big(alg, zlevel, blocksize, force=False):
+
     for x in FileObject.file_list:
         
-        if not x.target_file.parent.exists():
-            x.target_file.parent.mkdir(parents=True)
+        x.create_parentDir() #If the file must be place in some subfolder
 
-        with open(x.source_file, 'rb') as src, open(x.target_file, 'wb') as dst:
+        with open(x.source_file, 'rb') as src, open(x.target_file, 'w+b') as dst:
             initial_size =x.source_file.stat().st_size
-            nblocks = math.floor((initial_size + blocksize - 1) / blocksize)
+            
+            nblocks = int(math.floor((initial_size / blocksize)) + 1)
             pointers_table = []
 
             # write header
             dst.write(ZISOFSv2.generate_header(initial_size))
 
+            # Write pointers table
+            if x.isLess4GB():
+                dst.write(bytearray(nblocks * 4))
+            else:
+                dst.write(bytearray(nblocks * 8))
+
             while True:
                 piece = src.read(blocksize)  
+                pointers_table.append(dst.tell())
                 if not piece:
                     break
-                data = lzma.compress(piece)
-                pointers_table.append(dst.tell())
-                dst.write(data)
 
-            final_compressed_size = estimate_final_size(dst.tell(), pointers_table)
+                if not all(byte == 0 for byte in piece):
+                    # Zero length blocks will be skipped
+                    data = compress_chunk(piece, alg=alg, preset=zlevel)
+                    dst.write(data)
             
-            if final_compressed_size >= src.tell() and not force:
+            pointers_table.append(dst.tell()) # Last block
+
+            if dst.tell() >= src.tell() and not force:
                 # Final size is not interesting with this compression
                 src.seek(0)
                 dst.seek(0)
                 dst.write(src.read())
-            print(pointers_table)
-
-            # while (block := src.read(blocksize)):
-            #     dst.write(block)                
+            else:
+                # We confirm that compressed file will be stored. Append pointers table
+                dst.seek(32) # Just after the header
+                if x.isLess4GB():
+                    [dst.write(int_to_iso731(addr)) for addr in pointers_table]
+                else:
+                    [dst.write(uint64_to_two_iso731(addr, one=True)) for addr in pointers_table]

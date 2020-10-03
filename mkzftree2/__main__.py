@@ -1,9 +1,11 @@
 from mkzftree2.arguments import get_parser
 from mkzftree2.models.FileObject import FileObject, ZISOFSv2
-from mkzftree2.file_process import find_files, compress_big
+import mkzftree2.file_process as fp
 
+opt = 22
 
 def main(args=None):
+    global opt
     parser = get_parser()
     opt = parser.parse_args(args)
 
@@ -25,9 +27,9 @@ def main(args=None):
     ZISOFSv2.set_compressor(opt.a)
 
     # Recursive search of all files
-    find_files(source)
+    fp.find_files(source)
 
-    compress_big(opt.a, opt.z, blocksize, force=opt.force)
+    fp.compress_big(opt.a, opt.z, blocksize, force=opt.force)
 
 
     # Process

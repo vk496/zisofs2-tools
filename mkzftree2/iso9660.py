@@ -25,14 +25,20 @@ def iso731_to_int(data):
     """
     return int.from_bytes(data, byteorder='little', signed=False) # TODO: limit to 4 byte read
 
-def uint64_to_two_iso731(value):
+def uint64_to_two_iso731(value, one=False):
     """
     Convert a uint64 value to two iso731
     Return first low-order bytes, and after high-order
+
+    With one=True, return then in a single variable
     """
     low_order = int_to_iso731(value & 0xffffffff)
     high_order= int_to_iso731(value >> 32)
-    return low_order, high_order
+    
+    if one:
+        return bytes(low_order + high_order)
+    else:
+        return low_order, high_order
 
 def two_iso731_to_uint64(low, high):
     """
