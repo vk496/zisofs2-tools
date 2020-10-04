@@ -1,8 +1,8 @@
 
                         Description of the zisofs2 Format
-                                  Revision 2.0
+                                  Revision 2.0-dev
 
-                   as of zisofs2-tools-0.0.1 by Valentín KIVACHUK BURDÁ
+                   as of zisofs2-tools by Valentín KIVACHUK BURDÁ
                    and cdrtools-???? by Joerg Schilling
 
        For libburnia-project.org by Thomas Schmitt <scdbackup@gmx.net>
@@ -11,7 +11,7 @@
                                 1 Oct 2020
 
 
-The zisofs format was invented by H. Peter Anvin and extended by Valentín KIVACHUK BURDÁ. It compresses data file
+The zisofs format was invented by H. Peter Anvin and extended by Valentín KIVACHUK BURDÁ and Thomas Schmitt. It compresses data file
 content, marks it by a header and provides a pointer array for coarse random
 access. Within a RRIP enhanced ISO 9660 image the format is additionally marked
 by a System Use entry with signature "ZF".
