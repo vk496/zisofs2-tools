@@ -51,10 +51,11 @@ The file header has this layout:
       8           7.3.1            @ufs_l           Uncompressed file size (low-order bytes) #uin64_l
      12           7.1.1            @hdr_size        header_size >> 2 (currently 8)
      13           7.1.1            @hdr_bsize       log2(block_size)
-     14           7.1.1            @alg_id          Algorithm Type
-     15           7.1.1            @alg_strat       Algorithm strategy
-     16           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
-     20           (12 bytes)                        Reserved, must be zero
+     14           (2 bytes)        N/A              Reserved. Must be zero
+     16           7.1.1            @alg_id          Algorithm Type
+     17           7.1.1            @alg_strat       Algorithm strategy
+     18           7.3.1            @ufs_h           Uncompressed file size (high-order bytes) #uin64_h
+     22           (10 bytes)                        Reserved, must be zero
 
 So its size is 32.
 

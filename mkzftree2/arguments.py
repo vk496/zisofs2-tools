@@ -23,7 +23,7 @@ def dir_outree(dir):
 default_block_sizes = [32, 64, 128]
 
 
-def get_parser():
+def get_options(args):
     """
     Creates a new argument parser.
     """
@@ -31,9 +31,15 @@ def get_parser():
     parser.add_argument('intree', type=dir_intree, action='store', nargs=1, help="Input directory")
     parser.add_argument('outtree', type=dir_outree, action='store', nargs=1, help="Output directory")
     parser.add_argument('-f', '--force', default=False, action='store_true', help="Always compress, even if result is larger")
+    parser.add_argument('--legacy', default=False, action='store_true', help="Generate old ZISOFSv1 tree")
     parser.add_argument('-a', choices=['zlib', 'xz', 'lz4'], required=True, type=str, help="Compression algorithm")
     parser.add_argument('-b', '--blocksize', choices=default_block_sizes, type=int, default=32, help="Blocksize can be 32kb, 64kb or 128kb")
     parser.add_argument('-z', choices=range(1,10), metavar="[1-9]", type=int, default=6, help="Compression level")
     parser.add_argument('-v', '--version', action='version', version="1.0")
 
-    return parser
+    opt = parser.parse_args(args)
+
+    if opt.legacy and not opt.a == 'zlib':
+        raise ValueError(f"Legacy mode only support zlib compressor")
+
+    return opt
