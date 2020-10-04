@@ -18,5 +18,10 @@ setuptools.setup(
         "License :: OSI Approved :: GPLv3",
         "Operating System :: OS Independent",
     ],
+    entry_points={
+        'console_scripts': [
+            'mkzftree2 = mkzftree2.__main__:main',
+        ],
+    },
     python_requires='>=3.6',
 )
