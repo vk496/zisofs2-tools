@@ -2,22 +2,19 @@
                         Description of the zisofs2 Format
                                   Revision 2.0-dev
 
-                   as of zisofs2-tools by Valentín KIVACHUK BURDÁ
-                   and cdrtools-???? by Joerg Schilling
-
-       For libburnia-project.org by Thomas Schmitt <scdbackup@gmx.net>
-       - distribute freely , please report any errors or ambiguities -
+                           as of zisofs2-tools by
+                   Valentín KIVACHUK BURDÁ and Thomas SCHMITT
 
                                 1 Oct 2020
 
 
-The zisofs format was invented by H. Peter Anvin and extended by Valentín KIVACHUK BURDÁ and Thomas Schmitt. It compresses data file
-content, marks it by a header and provides a pointer array for coarse random
-access. Within a RRIP enhanced ISO 9660 image the format is additionally marked
-by a System Use entry with signature "ZF".
+The zisofs format was invented by H. Peter Anvin and extended by Valentín KIVACHUK BURDÁ 
+and Thomas Schmitt. It compresses data file content, marks it by a header and provides a 
+pointer array for coarse random access. Within a RRIP enhanced ISO 9660 image the format 
+is additionally marked by a System Use entry with signature "ZF".
 
 The uncompressed size of a single zisofs compressed file is restricted
-to 256 TiB - 1 byte. Larger files shall not be compressed.
+to 2^64 - 1 bytes. Larger files shall not be compressed.
 
 
 
@@ -34,11 +31,12 @@ ISO 9660:7.3.3 - standard - 4-byte word in both byte orders, first little endian
 
 The file header has this layout:
     @alg_id       @alg_char                Description
-     0            'pz' (70)(7A)            Zlib
-     1            'xz' (78)(7A)            LZMA2 (xz container)
-     2            'l4' (6C)(34)            LZ4
-     3            'zd' (7A)(64)            Zstandard
-     4            'b2' (62)(32)            Bzip2
+     0            'pz' (70)(7A)            Zlib with 32 bit block pointers
+     1            'PZ' (50)(5A)            Zlib with 64 bit block pointers
+     2            'XZ' (78)(7A)            LZMA2 (xz container)
+     3            'L4' (6C)(34)            LZ4
+     4            'ZD' (7A)(64)            Zstandard
+     5            'B2' (62)(32)            Bzip2
 
 @alg_id is a 7.1.1 value. @alg_char is 2 ASCII characters stored as 2 bytes
 
@@ -83,8 +81,8 @@ and thus marks the end of the last block
 
 So there are ceil(input_size / @hdr_bsize) + 1 block pointers.
 They are stored directly after the file header, i.e. beginning at byte 32, 
-as an array of ISO 9660:7.3.1 for input files with a size smaller than 
-2^32 bytes and #uint64 values for equal or bigger than 2^32 bytes
+as an array of #uint64 values. For supporting old readers, values of type ISO 7.3.1
+must be used when @alg_id is 0 ('pz')
 
 
 
@@ -115,7 +113,7 @@ Its fields are:
 
   [2] "BP 3 - Length" shall specify as an 8-bit number the length in bytes of
       the ZF entry recorded according to ISO 9660:7.1.1.
-      This length is 25 decimal.
+      This length is 17 decimal.
 
   [3] "BP 4 - System Use Entry Version" shall be 2 as in ISO 9660:7.1.1.
 
@@ -134,30 +132,21 @@ Its fields are:
       (This is a copy of header byte 13 (@hdr_bsize), resp. header BP 14.
        The value has to be 15, 16 or 17 i.e. 32 kiB, 64 kiB, or 128 kiB.)
 
-  [7] "BP 9 to BP 16 - Virtual Uncompressed File Size Low" shall contain
-      as a 32-bit number the low order 32-bits of the 64 bit uncompressed 
-      file size represented by the given extent. This field shall be recorded
-      according to ISO 9660:7.3.3.
-      (This is a copy of @ufs_l, resp header BP 9
-       to BP 12.)
+  [7] "BP 9 to BP 16 - Virtual Uncompressed File Size" shall contain
+      as a 64-bit unsigned little endian number the uncompressed 
+      file size represented by the given extent.
 
-  [8] "BP 17 to BP 24 - Virtual Uncompressed File Size High" shall contain
-      as a 32-bit number the high order 32-bits of the 64 bit uncompressed 
-      file size represented by the given extent. This field shall be recorded
-      according to ISO 9660:7.3.3.
-      (This is a copy of @ufs_h)
-
-  [9] "BP 25 - Algorithm strategy" shall be 0 as in ISO 9660:7.1.1.
+  [8] "BP 25 - Algorithm strategy" shall be 0 as in ISO 9660:7.1.1.
       (This is a copy of @alg_strat)
        
 
   | 'Z' | 'F' | LENGTH | 2 | 'p' | 'z' | HEADER SIZE DIV 4 | LOG2 BLOCK SIZE
-  | UNCOMPRESSED SIZE LOW | UNCOMPRESSED SIZE HIGH | ALGORITHM STRATEGY |
+  | UNCOMPRESSED SIZE | ALGORITHM STRATEGY |
 
 Example (block size 128 kiB, uncompressed file size = 40 TB):
-  { 'Z',  "F',   24,    2,  'p',  'z',    8,   17,
-   0x00, 0x80, 0xCA, 0x39, 0x39, 0xCA, 0x80, 0x00,
-   0x61, 0x24, 0x00, 0x00, 0x00, 0x00, 0x24, 0x61 }
+  { 'Z',  'F',  24,   2,  'p',  'z',    8,   17,
+   0x00, 0x80, 0xCA, 0x39, 0x61, 0x24, 0x00, 0x00,
+   0x00 }
 
 
 -------------------------------------------------------------------------------
