@@ -1,28 +1,50 @@
 language: python
+# ===== Linux ======
 python:
-  - "3.6"
-  - "3.7"
-  - "3.8"
-#  - "nightly"  # nightly build
-# # command to install dependencies
-# install:
-#   - pip install -r requirements.txt
-# # command to run tests
-matrix:
-  include:
-  - os: linux
-    name: PEP8 MyPy Coverage
-  - os: osx
-    language: minimal
-    install: pip3 install python3
-  - os: windows
-    language: minimal
-    before_install:
-    - choco install python3
-    - export PATH="/c/Python37:/c/Python37/Scripts:$PATH"
+  - 3.5
+  - 3.6
+  - 3.7
 
-before_script:
+before_script: &PREPARE_ENV
     - mkdir test
     - cp LICENSE test/
-script:
+script: &RUN
   - python3 -m mkzftree2 -a xz test out
+
+matrix:
+  include:      
+    # ======= OSX ========
+    - &TEST
+      name: "Python 3.6.5 on macOS 10.13"
+      os: osx
+      language: shell
+      env:
+        - PYTHON_VERSION=3.6.5
+      addons:
+        homebrew:
+          update: true
+          packages:
+            - python3
+            - pyenv
+      before_install:
+        - python3 --version
+        - echo 'eval "$(pyenv init -)"' >> ~/.bash_profile 
+        - source ~/.bash_profile
+        - pyenv install $PYTHON_VERSION
+        - pyenv global $PYTHON_VERSION
+        - python3 --version
+      <<: *PREPARE_ENV
+      <<: *RUN
+    #  ====== WINDOWS =========
+    - name: "Python 3.5.4 on Windows"
+      os: windows           # Windows 10.0.17134 N/A Build 17134
+      language: shell       # 'language: python' is an error on Travis CI Windows
+      env:
+        - PYTHON_VERSION=3.5.4
+        - PATH=/c/Python35:/c/Python35/Scripts:$PATH
+      before_install:
+        - choco install python --version $PYTHON_VERSION
+        - python --version
+        - python -m pip install --upgrade pip
+      <<: *PREPARE_ENV
+      <<: *RUN
