@@ -41,26 +41,15 @@ matrix:
     - &WINDOWS
       os: windows           # Windows 10.0.17134 N/A Build 17134
       language: shell       # 'language: python' is an error on Travis CI Windows
-      env:
-        - PYTHON_VERSION=3.6.8
-        - PATH=/c/Python36:/c/Python36/Scripts:$PATH
+      env: PYTHON_VERSION=3.6.8
       before_install:
         - choco install python --version $PYTHON_VERSION
         - python --version
         - python -m pip install --upgrade pip
+        - export PATH=/c/Python3${PYTHON_VERSION:2:1}:/c/Python3${PYTHON_VERSION:2:1}/Scripts:$PATH
       <<: *PREPARE_ENV
       <<: *RUN
     - <<: *WINDOWS
-      env:
-        - PYTHON_VERSION=3.6.8
-        - PATH=/c/Python36:/c/Python36/Scripts:$PATH
-
+      env: PYTHON_VERSION=3.7.9
     - <<: *WINDOWS
-      env:
-        - PYTHON_VERSION=3.7.9
-        - PATH=/c/Python37:/c/Python37/Scripts:$PATH
-
-    - <<: *WINDOWS
-      env:
-        - PYTHON_VERSION=3.8.6
-        - PATH=/c/Python38:/c/Python38/Scripts:$PATH
+      env: PYTHON_VERSION=3.8.6
