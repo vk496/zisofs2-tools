@@ -43,10 +43,10 @@ matrix:
       language: shell       # 'language: python' is an error on Travis CI Windows
       env: PYTHON_VERSION=3.6.8
       before_install:
+        - export PATH=/c/Python3${PYTHON_VERSION:2:1}:/c/Python3${PYTHON_VERSION:2:1}/Scripts:$PATH
         - choco install python --version $PYTHON_VERSION
         - python --version
         - python -m pip install --upgrade pip
-        - export PATH=/c/Python3${PYTHON_VERSION:2:1}:/c/Python3${PYTHON_VERSION:2:1}/Scripts:$PATH
       <<: *PREPARE_ENV
       <<: *RUN
     - <<: *WINDOWS
