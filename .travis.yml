@@ -17,4 +17,4 @@ before_script:
     - mkdir test
     - cp LICENSE test/
 script:
-  - python3 -m mkzftree2 -a xz tests out
+  - python3 -m mkzftree2 -a xz test out
