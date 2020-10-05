@@ -1,18 +1,26 @@
 language: python
-os:
-  - linux
-  - osx
 python:
-  - "3.4"
-  - "3.5"
   - "3.6"
   - "3.7"
   - "3.8"
-  - "nightly"  # nightly build
+#  - "nightly"  # nightly build
 # # command to install dependencies
 # install:
 #   - pip install -r requirements.txt
 # # command to run tests
+matrix:
+  include:
+  - os: linux
+    name: PEP8 MyPy Coverage
+  - os: osx
+    language: minimal
+    install: pip3 install python3
+  - os: windows
+    language: minimal
+    before_install:
+    - choco install python3
+    - export PATH="/c/Python37:/c/Python37/Scripts:$PATH"
+
 before_script:
     - mkdir test
     - cp LICENSE test/
