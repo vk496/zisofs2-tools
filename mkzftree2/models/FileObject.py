@@ -58,15 +58,15 @@ class ZISOFSv2(ZISOFS):
     @staticmethod
     def set_compressor(algorithm):
         if algorithm == 'zlib':
-            alg_id = 0
-        elif algorithm == 'xz':
             alg_id = 1
-        elif algorithm == 'lz4':
+        elif algorithm == 'xz':
             alg_id = 2
-        elif algorithm == 'zstd':
+        elif algorithm == 'lz4':
             alg_id = 3
-        elif algorithm == 'bzip2':
+        elif algorithm == 'zstd':
             alg_id = 4
+        elif algorithm == 'bzip2':
+            alg_id = 5
         else:
             raise ValueError(f"Illegal algorithm {algorithm}")
 

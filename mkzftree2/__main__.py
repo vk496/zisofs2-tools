@@ -28,7 +28,7 @@ def main(args=None):
     # Recursive search of all files
     fp.find_files(source, opt.legacy)
 
-    fp.compress_big(opt.a, opt.z, blocksize, force=opt.force)
+    fp.compress_file(opt.a, opt.z, blocksize, force=opt.force)
 
 
     # Process

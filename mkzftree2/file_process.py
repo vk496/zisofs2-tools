@@ -12,7 +12,7 @@ def find_files(source_dir, legacy=False):
             find_files(x, legacy)
 
 
-def compress_big(alg, zlevel, blocksize, force=False):
+def compress_file(alg, zlevel, blocksize, force=False):
 
     for x in FileObject.file_list:
         
