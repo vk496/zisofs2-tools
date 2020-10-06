@@ -1,6 +1,6 @@
 
                         Description of the zisofs2 Format
-                                  Revision 2.0-dev
+                              Revision 2.0-dev
 
                            as of zisofs2-tools by
                    Valentín KIVACHUK BURDÁ and Thomas SCHMITT
@@ -8,13 +8,15 @@
                                 1 Oct 2020
 
 
-The zisofs2 format was invented by Valentín KIVACHUK BURDÁ and Thomas SCHMITT (as extension
-of zisofs by H. Peter Anvin). It compresses data file content, marks it by a header and provides a 
-pointer array for coarse random access. Within a RRIP enhanced ISO 9660 image the format 
+The zisofs2 format was invented by Valentín KIVACHUK BURDÁ and 
+Thomas SCHMITT (as extension of zisofs by H. Peter Anvin). It compresses
+data file content, marks it by a header and provides a pointer array for 
+coarse random access. Within a RRIP enhanced ISO 9660 image the format 
 is additionally marked by a System Use entry with signature "ZF".
 
 The uncompressed size of a single zisofs compressed file is restricted
-to 2^64 - 1 bytes. Larger files shall not be compressed. Refer to **LEGACY**
+to 2^64 - 1 bytes. Larger files shall not be compressed. 
+Refer to **LEGACY**
 
 
 
@@ -22,7 +24,7 @@ to 2^64 - 1 bytes. Larger files shall not be compressed. Refer to **LEGACY**
 
 ISO 9660:7.3.1 - little endian 4-byte words
 ISO 9660:7.1.1 - unsigned single bytes
-ISO 9660:7.3.3 - 4-bytes word in both byte orders, first little endian, then big endian.
+ISO 9660:7.3.3 - 8-bytes value, first in little endian, then big endian.
 #uint64        - 8-bytes unsigned value in little endian
 
                                 Supported compressors
@@ -36,96 +38,99 @@ The file header has this layout:
      5            'B2' (62)(32)            Bzip2
 
 @alg_id is a 7.1.1 value. @alg_char is 2 ASCII characters stored as 2 bytes
-Values of @alg_id = 0 and @alg_char = 'pz'(70)(7A) are reserved and must not be used.
-Other compressors are allowed and may be added to this list in the future
+Values of @alg_id = 0 and @alg_char = 'pz'(70)(7A) are reserved and 
+must not be used. Other compressors are allowed and may be added to this 
+list in the future
 
                                 Compressor strategy
 
-The default strategy for a compressor is compress each data block input independently.
-
-The zisofs2 spec may define in the future other strategies,
+The default strategy for a compressor is to compress each input data block 
+independently. The zisofs2 spec may define in the future other strategies,
 which will have a new @alg_id, @alg_char and a description in this section.
 
 
                                 File Header
 
 The file header has this layout:
-    Byte offset   iso9660 type     Identifier       Contents
-      0           (8 bytes)        @hdr_magic       Magic number (EF 22 55 A1 BC 1B 95 A0)
-      8           7.1.1            @hdr_version     Format vesrion (2)
-      9           7.1.1            @hdr_size        header_size >> 2 (5)
-     10           7.1.1            @alg_id          Algorithm Type (>=1)
-     11           7.1.1            @hdr_bsize       log2(block_size) (15, 16, or 17)
-     12           7.3.1            @crc32           CRC32 of uncompressed file
-     16           #uint64          @size            Uncompressed file size
+Offset     Type         Identifier    Contents
+--------------------------------------------------------------------------
+  0        (8 bytes)    @hdr_magic    Magic num (EF 22 55 A1 BC 1B 95 A0)
+  8        7.1.1        @hdr_version  File header version (0)
+  9        7.1.1        @hdr_size     header_size >> 2 (5)
+ 10        7.1.1        @alg_id       Algorithm Type (>=1)
+ 11        7.1.1        @hdr_bsize    log2(block_size) (15, 16, or 17)
+ 12        #uint64      @size         Uncompressed file size
+ 20        (4 bytes)    -             Padding. Ignored
 
 So its size is 24.
 
 Readers shall be able to handle log2(block_size) values 15, 16 and 17
-i.e. block sizes 32 kB, 64 kB, and 128 kB. Writers must not use other sizes.
+i.e. block sizes 32 kB, 64 kB, and 128 kB. Writers must not use 
+other sizes.
 
-Legacy file header (zisofs) may be used, which is described in section **LEGACY**
+The format of version 1 of zisofs is supported by this specification.
+Using it for files with uncompressed size smaller than 4 GiB is friendly
+towards software which does not know about zisofs2.
+See section **LEGACY** for a summary of version 1 of zisofs.
 
 
                                Block Pointers
 
-There are ceil(input_size / @hdr_bsize) input resp. output blocks.
+There are ceil(input_size / block_size) input resp. output blocks.
 Each input block is of fixed size whereas the output blocks have varying
 size (down to 0). For each output block there is an offset pointer giving
 its byte address in the overall file content. The next block pointer in the
 array tells the start of the next block which begins immediately after the
-end of its predecessor. A final pointer (*eob*) gives the first invalid byte address
-and thus marks the end of the last block
+end of its predecessor. A final pointer (*eob*) gives the first invalid 
+byte address and thus marks the end of the last block.
 
-So there are ceil(input_size / @hdr_bsize) + 1 block pointers.
-They are stored directly after the file header, i.e. beginning at byte 32, 
+So there are ceil(input_size / block_size) + 1 block pointers.
+They are stored directly after the file header, i.e. beginning at byte 24, 
 as an array of values in #uint64 format (8 bytes).
 
-Legacy format (zisofs) may be used, which is described in section **LEGACY**
+Legacy format (zisofs) may be used, which is described in section *LEGACY*
 
 
 
                                  Data Part
 
-The data part begins immediately after the pointer array (*eob*). In principle it
-consists of the variable length output blocks as delivered by different compression algorithms
-when fed with the fixed size input blocks.
+The data part begins immediately after the pointer array (*eob*). In 
+principle it consists of the variable length output blocks as delivered by 
+different compression algorithms when fed with the fixed size input blocks.
 
 A special case of input and output block is defined:
 Zero-length blocks represent a block full of 0-bytes.
-Such input blocks do not get processed by compress2() but shall be mapped to
-0-sized output directly. Vice versa 0-sized blocks have to bypass uncompress()
-when being read.
+Such input blocks do not get processed by compress2() but shall be mapped 
+to 0-sized output directly. Vice versa 0-sized blocks have to bypass 
+uncompress() when being read.
 
 
                          ZF System Use Entry Format
-
-ZF may only be applied to files with a single extent and less than 4 GiB of
-uncompressed size.
 
 The ZF entry follows the general layout of SUSP resp. RRIP.
 Its fields are:
 
   [1] "BP 1 to BP 2 - Signature Word" shall be (5A)(46) ("ZF").
 
-  [2] "BP 3 - Length" shall specify as an 8-bit number the length in bytes of
-      the ZF entry recorded according to ISO 9660:7.1.1. Refer to **LEGACY**
+  [2] "BP 3 - Length" shall specify as an 8-bit number the length in 
+      bytes of the ZF entry recorded according to ISO 9660:7.1.1.
       This length is 16 decimal.
+      Refer to **LEGACY**
 
   [3] "BP 4 - System Use Entry Version" shall be 2 as in ISO 9660:7.1.1.
-      (This is a copy of @hdr_version). Refer to **LEGACY**
+      Refer to **LEGACY**
 
   [4] "BP 5 to BP 6 - Algorithm"  shall be two chars to indicate the
       compression algorithm. For example, (50)(5A) ("PZ")
       (This is a copy of @alg_char). Refer to **LEGACY**
 
-  [5] "BP 7 - Header Size Div 4" shall specify as an 8-bit number the number of
-      4-byte words in the header part of the file data recorded according
-      to ISO 9660:7.1.1.
+  [5] "BP 7 - Header Size Div 4" shall specify as an 8-bit number the 
+      number of 4-byte words in the header part of the file data recorded 
+      according to ISO 9660:7.1.1.
       (This is a copy of @hdr_size).
 
-  [6] "BP 8 - Log2 of Block Size" shall specify as an 8-bit number the binary
-      logarithm of the compression block size recorded according to
+  [6] "BP 8 - Log2 of Block Size" shall specify as an 8-bit number the 
+      binary logarithm of the compression block size recorded according to
       ISO 9660:7.1.1.
       (This is a copy of header byte 13 (@hdr_bsize), resp. header BP 14.
        The value has to be 15, 16 or 17 i.e. 32 kiB, 64 kiB, or 128 kiB.)
@@ -135,8 +140,8 @@ Its fields are:
       file size represented by the given extent. Refer to **LEGACY**
        
 
-  | 'Z' | 'F' | LENGTH | 2 | 'P' | 'Z' | HEADER SIZE DIV 4 | LOG2 BLOCK SIZE
-  | UNCOMPRESSED SIZE |
+  | 'Z' | 'F' | LENGTH | 2 | 'P' | 'Z' | HEADER SIZE DIV 4 | 
+  | LOG2 BLOCK SIZE | UNCOMPRESSED SIZE |
 
 Example (block size 128 kiB, uncompressed file size = 40 TB):
   { 'Z',  'F',  16,   2,  'P',  'Z',    8,   17,
@@ -146,23 +151,24 @@ Example (block size 128 kiB, uncompressed file size = 40 TB):
 
 **LEGACY**
 zisofs2 support old readers by respecting the zisofs format. This section
-describes which definitions from zisofs2 must change to be compatible with zisofs.
+describes which definitions from zisofs2 must change to be compatible 
+with zisofs.
 
 - General behaviour
   The uncompressed size of a single zisofs compressed file is restricted
   to 4 GiB - 1. Larger files shall not be compressed.
 
 - Supported algorithms
-  Restricted only to zlib with @alg_id = 0 and @alg_char = 'pz' (70)(7A) with default strategy
+  Only algorithm Zlib with default strategy is supported
 
 - The file header must follow the next structure
 
-  Byte offset   iso9660 type     Identifier       Contents
-    0           (8 bytes)        @hdr_magic       Magic number (37 E4 53 96 C9 DB D6 07)
-    8           7.3.1            @size            Uncompressed file size
-   12           7.1.1            @hdr_size        header_size >> 2 (4)
-   13           7.1.1            @hdr_bsize       log2(block_size) (15, 16, or 17)
-   14           (2 bytes)        -                Reserved, must be zero
+  Offset   Type        Identifier    Contents
+    0      (8 bytes)   @hdr_magic    Magic number (37 E4 53 96 C9 DB D6 07)
+    8      7.3.1       @size         Uncompressed file size
+   12      7.1.1       @hdr_size     header_size >> 2 (4)
+   13      7.1.1       @hdr_bsize    log2(block_size) (15, 16, or 17)
+   14      (2 bytes)   -             Reserved, must be zero
     
 So its size is 16.
 
@@ -173,18 +179,24 @@ So its size is 16.
 
 Its fields are:
 
+  [1] "BP 1 to BP 2 - Signature Word" shall be (5A)(46) ("ZF").
+
   [2] "BP 3 - Length" must be 16 decimal.
 
   [3] "BP 4 - System Use Entry Version" must be 1.
 
   [4] "BP 5 to BP 6 - Algorithm" must be (70)(7A) ("pz")
 
+  [5] "BP 7 - Header Size Div 4" - same as zisofs2
+
+  [6] "BP 8 - Log2 of Block Size" - same as zisofs2
+
   [7] "BP 9 to BP 16 - Uncompressed Size" This field shall be recorded
       according to ISO 9660:7.3.3.
       (This number is the same as @size )
 
-  | 'Z' | 'F' | LENGTH | 1 | 'p' | 'z' | HEADER SIZE DIV 4 | LOG2 BLOCK SIZE
-  | UNCOMPRESSED SIZE |
+  | 'Z' | 'F' | LENGTH | 1 | 'p' | 'z' | HEADER SIZE DIV 4 | 
+  | LOG2 BLOCK SIZE | UNCOMPRESSED SIZE |
 
 Example (block size 32 kiB, uncompressed file size = 1,234,567 bytes):
   { 'Z',  'F',   16,    1,  'p',  'z',    4,   15,
@@ -214,10 +226,10 @@ SUSP 1.12
 RRIP 1.12
   ftp://ftp.ymi.com/pub/rockridge/rrip112.ps
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
 This text is under
-Copyright (c) 2009 - 2010 Thomas SCHMITT <scdbackup@gmx.net>
+Copyright (c) 2009 - 2010, 2020 Thomas SCHMITT <scdbackup@gmx.net>
 Copyright (c) 2020 - Valentín KIVACHUK BURDÁ <vk18496@gmail.com>
 It shall reflect the effective technical specifications as implemented in
 zisofs2-tools and the Linux kernel. So please contact mailing list
