@@ -4,59 +4,54 @@ from pathlib import Path
 from mkzftree2.iso9660 import *
 
 
-class ZISOFS:
+class commonZisofs:
+    blocksize = None # Block size
+
+    def get_blocksize(self):
+        # ZISOFS.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
+        return 2 ** iso711_to_int(self.blocksize)
+
+class ZISOFS(commonZisofs):
     ## HEADER
     hdr_magic = b'\x37\xE4\x53\x96\xC9\xDB\xD6\x07'  # Magick Header
     ufs_l = None  # Uncompressed size
     hdr_size = int_to_iso711(4) # Header size
-    hdr_bsize = None # Block size
 
     ## Array
     pointers_size = 4
 
-    @staticmethod
-    def set_blocksize(blocksize):
-        ZISOFS.hdr_bsize = int_to_iso711(int(math.log(blocksize, 2)))
-
-    @staticmethod
-    def get_blocksize():
-        # ZISOFS.hdr_bsize = int_to_iso711(int(math.log(blocksize, 2)))
-        return 2 ** iso711_to_int(ZISOFS.hdr_bsize)
-
-
-    def __init__(self, size):
+    def __init__(self, size, blocksize):
         self.ufs_l = int_to_iso731(size) # The conversion check the maximum size and raise exception if is exceded
+        self.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
 
     def __bytes__(self):
         header = bytearray()
         header.extend(self.hdr_magic) # 8
         header.extend(self.ufs_l) # 4
         header.extend(self.hdr_size) # 1
-        header.extend(self.hdr_bsize) # 1
+        header.extend(self.blocksize) # 1
         header.extend(bytearray(2)) # 2
 
         return bytes(header)
 
 
-class ZISOFSv2(ZISOFS):
+class ZISOFSv2(commonZisofs):
 
     ## Header
-    hdr_size = int_to_iso711(8) # 32 bytes size
-    ufs_h = None  # Uncompressed size high
+    hdr_magic = b'\xEF\x22\x55\xA1\xBC\x1B\x95\xA0'  # Magick Header
+    hdr_version = int_to_iso711(0)
+    hdr_size = int_to_iso711(5) # 24 bytes size
     alg_id = None
-    alg_strat = int_to_iso711(0)
+    size = None
 
     # Array
     pointers_size = 8
 
-    def __init__(self, size):
-        low, high = uint64_to_two_iso731(size)
+    def __init__(self, size, blocksize, algorithm):
 
-        super().__init__(iso731_to_int(low))
-        self.ufs_h = high
+        self.size = int_to_uint64(size)
+        self.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
 
-    @staticmethod
-    def set_compressor(algorithm):
         if algorithm == 'zlib':
             alg_id = 1
         elif algorithm == 'xz':
@@ -69,63 +64,36 @@ class ZISOFSv2(ZISOFS):
             alg_id = 5
         else:
             raise ValueError(f"Illegal algorithm {algorithm}")
-
-        ZISOFSv2.alg_id = int_to_iso711(alg_id)
+        self.alg_id =  int_to_iso711(alg_id)
 
 
     def __bytes__(self):
-        header = bytearray(super().__bytes__())
+        header = bytearray()
+        header.extend(self.hdr_magic) # 8
+        header.extend(self.hdr_version) # 1
+        header.extend(self.hdr_size) # 1
         header.extend(self.alg_id) # 1
-        header.extend(self.alg_strat) # 1
-        header.extend(self.ufs_h) # 4
-        header.extend(bytearray(10)) # 10
+        header.extend(self.blocksize) # 1
+        header.extend(self.size) # 8
+        header.extend(bytearray(4)) # 4
 
         return bytes(header)
 
 
-class PointerArray:
-    array = []
-    total_num = 0
-
-    @staticmethod
-    def add_pointer(value):
-        PointerArray.array.append(value)
-
-
 class FileObject:
-    size_limit = 2**25  # Files bigger than this, must be processed in multithread if possible
-    file_list = []  # Global list of file
     target_dir = None
     source_dir = None
-    header_size = 32
-
-    # Class functions
-
-    @staticmethod
-    def get_smallfiles():
-        ret = []
-        for f in FileObject.file_list:
-            if f.isSmall():
-                ret.append(f)
-        return ret
-
-    @staticmethod
-    def compressFiles():
-        pass
 
     # Instance functions
-
-    def __init__(self, file, isLegacy):
-        self.source_file = file
-        self.target_file = FileObject.target_dir / \
-            file.relative_to(FileObject.source_dir)
+    def __init__(self, source_file, target_file, alg, blocksize, isLegacy):
+        self.source_file = source_file
+        self.target_file = target_file
 
         if isLegacy:
-            self.header = ZISOFS(self.getInputSize())
+            self.header = ZISOFS(self.getInputSize(), blocksize)
         else:
-            self.header = ZISOFSv2(self.getInputSize())
+            self.header = ZISOFSv2(self.getInputSize(), blocksize, alg)
 
-        FileObject.file_list.append(self)
 
     def getFileSource(self):
         return self.source_file

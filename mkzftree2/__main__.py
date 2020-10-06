@@ -1,6 +1,6 @@
 from mkzftree2.arguments import get_options
 from mkzftree2.models.FileObject import FileObject, ZISOFS, ZISOFSv2
-import mkzftree2.file_process as fp
+from mkzftree2.file_process import process_files, find_files
 
 
 def main(args=None):
@@ -16,19 +16,11 @@ def main(args=None):
     except FileExistsError: # We already checked that is a empty dir
         pass
     
-    # We will use this
-    FileObject.target_dir = target
-    FileObject.source_dir = source
-
-    ZISOFS.set_blocksize(blocksize)
-
-    if not opt.legacy:
-        ZISOFSv2.set_compressor(opt.a)
 
     # Recursive search of all files
-    fp.find_files(source, opt.legacy)
+    list_files = find_files(source, opt.legacy)
 
-    fp.compress_file(opt.a, opt.z, blocksize, force=opt.force)
+    process_files(list_files, source, target, opt.a, opt.z, blocksize)
 
 
     # Process

@@ -6,13 +6,13 @@ from mkzftree2.models.FileObject import FileObject
 
 
 def compress_file(input_file, output_file, blocksize=2**32, algorithm='zlib', zlevel=6, force=False, legacy=False):
-    if type(input_file) != Path:
+    if not isinstance(input_file, Path):
         raise ValueError(f"Input type not Path")
 
-    if type(output_file) != Path:
+    if not isinstance(output_file, Path):
         raise ValueError(f"Output type not Path")
 
-    fobj = FileObject(input_file, legacy)
+    fobj = FileObject(input_file, output_file, alg=algorithm, blocksize=blocksize, isLegacy=legacy)
 
     fobj.create_parentDir() #If the file must be place in some subfolder
 
@@ -23,12 +23,15 @@ def compress_file(input_file, output_file, blocksize=2**32, algorithm='zlib', zl
         ziso_header = fobj.generate_header()
         dst.write(ziso_header)
 
-        for chunk in read_in_chunks(src, blocksize):
+        # Pointers table
+        dst.write(fobj.getTablePointers())
+
+        for chunk in _read_in_chunks(src, blocksize):
             pointers_table.append(dst.tell())
     
             if not all(byte == 0 for byte in chunk):
                 # Zero blocks will be skipped
-                data = compress_chunk(chunk, alg=algorithm, preset=zlevel)
+                data = _compress_chunk(chunk, alg=algorithm, preset=zlevel)
                 dst.write(data)
 
         pointers_table.append(dst.tell()) # Last block
@@ -48,7 +51,7 @@ def compress_file(input_file, output_file, blocksize=2**32, algorithm='zlib', zl
 
 
 # https://stackoverflow.com/a/519653
-def read_in_chunks(file_object, chunk_size):
+def _read_in_chunks(file_object, chunk_size):
     """Lazy function (generator) to read a file piece by piece.
     Default chunk size: 1k."""
     while True:
@@ -57,7 +60,7 @@ def read_in_chunks(file_object, chunk_size):
             break
         yield data
 
-def compress_chunk(chunk, alg=None, preset=6, strategy=0):
+def _compress_chunk(chunk, alg=None, preset=6, strategy=0):
     if alg == "xz":
         return lzma.compress(chunk, preset=preset)
     elif alg == "zlib":

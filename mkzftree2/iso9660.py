@@ -31,6 +31,15 @@ def iso731_to_int(data):
 
     return int.from_bytes(data, byteorder='little', signed=False)
 
+def int_to_uint64(value):
+    return value.to_bytes(8, byteorder='little', signed=False)
+
+def uint64_to_int(data):
+    if len(data) != 8:
+        raise ValueError(f"{data} size must be 8")
+
+    return int.from_bytes(data, byteorder='little', signed=False)
+
 def uint64_to_two_iso731(value, one=False):
     """
     Convert a uint64 value to two iso731
