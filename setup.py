@@ -3,8 +3,15 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+test_deps = [
+    'pytest >= 6.1.1',
+]
+extras = {
+    'test': test_deps,
+}
+
 setuptools.setup(
-    name="zisofs2-tools-vk496", # Replace with your own username
+    name="zisofs2-tools-vk496",  # Replace with your own username
     version="0.0.1",
     author="Valentín KIVACHUK BURDÁ",
     author_email="vk18496@gmail.com",
@@ -24,4 +31,9 @@ setuptools.setup(
         ],
     },
     python_requires='>=3.6',
+    install_requires=[
+        'lz4 >= 3.1.0',
+    ],
+    tests_require=test_deps,
+    extras_require=extras,
 )

@@ -20,7 +20,7 @@ def main(args=None):
     # Recursive search of all files
     list_files = find_files(source, opt.file, opt.legacy)
 
-    process_files(list_files, source, target, opt.overwrite, opt.a, opt.z, blocksize)
+    process_files(list_files, source, target, opt.overwrite, opt.a, opt.z, blocksize, opt.force, opt.legacy)
 
 
     # Process

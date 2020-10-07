@@ -4,14 +4,12 @@ from pathlib import Path
 from mkzftree2.models.FileObject import FileObject
 
 
-def compress_file(input_file, output_file, blocksize=2**32, algorithm='zlib', zlevel=6, force=False, legacy=False):
-    if not isinstance(input_file, Path):
-        raise ValueError(f"Input type not Path")
-
-    if not isinstance(output_file, Path):
-        raise ValueError(f"Output type not Path")
-
-    fobj = FileObject(input_file, output_file, alg=algorithm, blocksize=blocksize, isLegacy=legacy)
+def compress_file(input_file, output_file, blocksize=2**15, algorithm='zlib', zlevel=6, force=False, legacy=False):
+    
+    in_file = Path(input_file) if not isinstance(input_file, Path) else input_file
+    out_file = Path(output_file) if not isinstance(output_file, Path) else output_file
+    
+    fobj = FileObject(in_file, out_file, alg=algorithm, blocksize=blocksize, isLegacy=legacy)
 
     fobj.create_parentDir() #If the file must be place in some subfolder
 

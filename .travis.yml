@@ -9,10 +9,9 @@ before_install:
   - python -m pip install --upgrade pip
 before_script: &PREPARE_ENV
   - python --version
-  - mkdir test
-  - cp LICENSE test/
+  - pip install -e .[test]
 script: &RUN
-  - python -m mkzftree2 -a xz test out
+  - pytest -v
 
 matrix:
   include:      

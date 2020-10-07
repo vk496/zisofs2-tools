@@ -29,7 +29,7 @@ def find_files(source_dir, restrict_search, legacy=False):
     return list_files
 
 
-def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, blocksize, force=False, legacy=False):
+def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, blocksize, force, legacy):
     osizesum = 0
     csizesum = 0
     for f in list_files:
