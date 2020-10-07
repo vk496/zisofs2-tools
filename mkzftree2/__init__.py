@@ -1,1 +1,1 @@
-# from .arguments import foo
+from mkzftree2.compressor import compress_file
