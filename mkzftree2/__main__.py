@@ -8,7 +8,7 @@ def main(args=None):
 
     source = opt.in_dir[0]
     target = opt.out_dir[0]
-    blocksize = opt.blocksize * 2**10
+    blocksize = 2 ** opt.blocksize
 
     # Create targer directory
     try:

@@ -230,7 +230,7 @@ RRIP 1.12
 
 This text is under
 Copyright (c) 2009 - 2010, 2020 Thomas SCHMITT <scdbackup@gmx.net>
-Copyright (c) 2020 - Valentín KIVACHUK BURDÁ <vk18496@gmail.com>
+Copyright (c) 2020 - Valentín KIVACHUK BURDÁ <mail@vk496.es>
 It shall reflect the effective technical specifications as implemented in
 zisofs2-tools and the Linux kernel. So please contact mailing list
 <bug-xorriso@gnu.org> or to the copyright holder in private, if you

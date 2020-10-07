@@ -33,6 +33,7 @@ setuptools.setup(
     python_requires='>=3.6',
     install_requires=[
         'lz4 >= 3.1.0',
+        'zstandard >= 0.14.0',
     ],
     tests_require=test_deps,
     extras_require=extras,

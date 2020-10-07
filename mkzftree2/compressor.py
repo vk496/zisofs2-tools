@@ -1,4 +1,4 @@
-import lzma, zlib, lz4.frame #Compressors
+import lzma, zlib, lz4.frame, bz2, zstandard as zstd #Compressors
 from pathlib import Path
 
 from mkzftree2.models.FileObject import FileObject
@@ -28,7 +28,7 @@ def compress_file(input_file, output_file, blocksize=2**15, algorithm='zlib', zl
     
             if not all(byte == 0 for byte in chunk):
                 # Zero blocks will be skipped
-                data = _compress_chunk(chunk, alg=algorithm, preset=zlevel)
+                data = _compress_chunk(chunk, algorithm, zlevel)
                 dst.write(data)
 
         pointers_table.append(dst.tell()) # Last block
@@ -62,12 +62,16 @@ def _read_in_chunks(file_object, chunk_size):
             break
         yield data
 
-def _compress_chunk(chunk, alg=None, preset=6, strategy=0):
+def _compress_chunk(chunk, alg, preset, strategy=0):
     if alg == "zlib":
         return zlib.compress(chunk, level=preset)
     elif alg == "xz":
         return lzma.compress(chunk, preset=preset)
     elif alg == "lz4":
         return lz4.frame.compress(chunk, compression_level=preset)
+    elif alg == "zstd":
+        return zstd.ZstdCompressor(level=preset).compress(chunk)
+    elif alg == "bzip2":
+        return bz2.compress(chunk, compresslevel=preset)
     else:
         raise NotImplementedError(f"{alg} compressor not supported")
