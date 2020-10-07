@@ -1,5 +1,4 @@
-import lzma
-import zlib
+import lzma, zlib, lz4.frame #Compressors
 from pathlib import Path
 
 from mkzftree2.models.FileObject import FileObject
@@ -36,17 +35,22 @@ def compress_file(input_file, output_file, blocksize=2**32, algorithm='zlib', zl
 
         pointers_table.append(dst.tell()) # Last block
 
+        ratio = 1
+
         if dst.tell() >= src.tell() and not force:
             # Final size is bigger than compressed size
             src.seek(0)
             dst.seek(0)
             dst.write(src.read()) # TODO: Check memory usage for big files
-            return False
         else:
+            # Save the ratio
+            ratio = dst.tell() / src.tell()
             # We confirm that compressed file will be stored. Append pointers table
             dst.seek(len(ziso_header)) # Just after the header
             dst.write(fobj.getTablePointers(list_pointers=pointers_table))
-            return True
+        
+        return ratio
+        
 
 
 
@@ -61,9 +65,11 @@ def _read_in_chunks(file_object, chunk_size):
         yield data
 
 def _compress_chunk(chunk, alg=None, preset=6, strategy=0):
-    if alg == "xz":
-        return lzma.compress(chunk, preset=preset)
-    elif alg == "zlib":
+    if alg == "zlib":
         return zlib.compress(chunk, level=preset)
+    elif alg == "xz":
+        return lzma.compress(chunk, preset=preset)
+    elif alg == "lz4":
+        return lz4.frame.compress(chunk, compression_level=preset)
     else:
         raise NotImplementedError(f"{alg} compressor not supported")

@@ -6,8 +6,8 @@ from mkzftree2.file_process import process_files, find_files
 def main(args=None):
     opt = get_options(args)
 
-    source = opt.intree[0]
-    target = opt.outtree[0]
+    source = opt.in_dir[0]
+    target = opt.out_dir[0]
     blocksize = opt.blocksize * 2**10
 
     # Create targer directory
@@ -18,9 +18,9 @@ def main(args=None):
     
 
     # Recursive search of all files
-    list_files = find_files(source, opt.legacy)
+    list_files = find_files(source, opt.file, opt.legacy)
 
-    process_files(list_files, source, target, opt.a, opt.z, blocksize)
+    process_files(list_files, source, target, opt.overwrite, opt.a, opt.z, blocksize)
 
 
     # Process
