@@ -44,3 +44,4 @@ def test_compress(input_file, output_file, alg, blocksize, zlevel, legacy):
             )
 
     assert(ratio < 1)
+    print(f"ratio: {ratio*100:0.2f}%", end=' ')

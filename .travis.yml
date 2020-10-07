@@ -11,7 +11,7 @@ before_script: &PREPARE_ENV
   - python --version
   - pip install -e .[test]
 script: &RUN
-  - pytest -v
+  - pytest -vs
 
 matrix:
   include:      
