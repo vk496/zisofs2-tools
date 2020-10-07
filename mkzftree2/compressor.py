@@ -2,18 +2,21 @@ import lzma, zlib, lz4.frame, bz2, zstandard as zstd #Compressors
 from pathlib import Path
 
 from mkzftree2.models.FileObject import FileObject
+from mkzftree2.arguments import default_block_sizes, default_compressors
 
 
 def compress_file(input_file, output_file, blocksize=2**15, algorithm='zlib', zlevel=6, force=False, legacy=False):
     
     in_file = Path(input_file) if not isinstance(input_file, Path) else input_file
     out_file = Path(output_file) if not isinstance(output_file, Path) else output_file
+    if blocksize not in [2**x for x in default_block_sizes]: raise ValueError(f"Not a valid {blocksize}")
+    if algorithm not in default_compressors: raise ValueError(f"Not a valid {algorithm}")
     
     fobj = FileObject(in_file, out_file, alg=algorithm, blocksize=blocksize, isLegacy=legacy)
 
     fobj.create_parentDir() #If the file must be place in some subfolder
 
-    with open(fobj.getFileSource(), 'rb') as src, open(fobj.getFileTarget(), 'w+b') as dst:
+    with open(fobj.getFileSource(), 'rb') as src, open(fobj.getFileTarget(), 'wb') as dst:
         pointers_table = []
         
         # File header
@@ -39,6 +42,7 @@ def compress_file(input_file, output_file, blocksize=2**15, algorithm='zlib', zl
             # Final size is bigger than compressed size
             src.seek(0)
             dst.seek(0)
+            dst.truncate() # Remove all content from file
             dst.write(src.read()) # TODO: Check memory usage for big files
         else:
             # Save the ratio

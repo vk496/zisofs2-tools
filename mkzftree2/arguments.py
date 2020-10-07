@@ -36,8 +36,9 @@ def get_options(args):
     parser.add_argument('out_dir', type=output_dir, action='store', nargs=1, help="Output directory")
     parser.add_argument('file', type=input_files, action='store', nargs='*', help="Optional input file")
 
-    parser.add_argument('-a', choices=default_compressors, type=str, help="Compression algorithm")
+    parser.add_argument('-a', choices=default_compressors, default='zlib', type=str, help="Compression algorithm")
     parser.add_argument('-b', '--blocksize', choices=default_block_sizes, type=int, default=15, help="Blocksize can be 15 (32kb), 16 (64kb) or 17 (128kb)")
+    parser.add_argument('--follow-symlinks', default=False, action='store_true', help="Process symlinks outside in_dir as regular files")
     parser.add_argument('-f', '--force', default=False, action='store_true', help="Always compress, even if result is larger")
     parser.add_argument('--legacy', default=False, action='store_true', help="Generate old ZISOFSv1 tree")
     parser.add_argument('-o', '--overwrite', default=False, action='store_true', help="Overwrite if file exist (Default: skip)")

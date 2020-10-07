@@ -18,9 +18,9 @@ def main(args=None):
     
 
     # Recursive search of all files
-    list_files = find_files(source, opt.file, opt.legacy)
+    list_files = find_files(source, opt.file, opt.follow_symlinks)
 
-    process_files(list_files, source, target, opt.overwrite, opt.a, opt.z, blocksize, opt.force, opt.legacy)
+    process_files(list_files, source, target, opt.overwrite, opt.a, opt.z, blocksize, opt.force, opt.legacy, opt.follow_symlinks)
 
 
     # Process
