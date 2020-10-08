@@ -9,10 +9,9 @@ def clone_attributes(input_file, output_file):
 
     if platform.system() == 'Windows':
         import win32api
-        att_i = win32api.GetFileAttributes(input_file)
-        att_o = win32api.GetFileAttributes(output_file)
+        att_i = win32api.GetFileAttributes(str(input_file))
         # Setting att_o to have the same exact attributes as att_i
-        win32api.SetFileAttributes(att_o, att_i)
+        win32api.SetFileAttributes(str(output_file), att_i)
     else:
         st = os.stat(input_file)
 
