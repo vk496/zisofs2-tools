@@ -1,14 +1,9 @@
-import zlib
-import bz2
-import lzma
 from pathlib import Path
-import lz4.frame
-import zstandard as zstd
 
-from mkzftree2.models.FileObject import FileObject, FileUnknownObject
+from mkzftree2.models.FileObject import FileObject
 from mkzftree2.arguments import default_block_sizes, default_compressors
 from mkzftree2.utils import clone_attributes, clone_dir_attributes
-
+from mkzftree2.models.algoritm import Algorithm
 
 def uncompress_file(input_file, output_file, copy_attributes=True):
     """
@@ -22,11 +17,14 @@ def uncompress_file(input_file, output_file, copy_attributes=True):
 
     try:
         fobj = FileObject(in_file)
-        print("xd")
     except ValueError:
         # Not compressed. Just copy
         with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
             dst.write(src.read())  # TODO: Check memory usage for big files
+
+    
+    for data in fobj.get_chunks():
+        print(len(data))
 
     if copy_attributes:
         clone_attributes(in_file, out_file)
@@ -112,17 +110,3 @@ def _read_in_chunks(file_object, chunk_size):
             break
         yield data
 
-
-def _compress_chunk(chunk, alg, preset):
-    if alg == "zlib":
-        return zlib.compress(chunk, level=preset)
-    elif alg == "xz":
-        return lzma.compress(chunk, preset=preset)
-    elif alg == "lz4":
-        return lz4.frame.compress(chunk, compression_level=preset)
-    elif alg == "zstd":
-        return zstd.ZstdCompressor(level=preset).compress(chunk)
-    elif alg == "bzip2":
-        return bz2.compress(chunk, compresslevel=preset)
-    else:
-        raise NotImplementedError(f"{alg} compressor not supported")
