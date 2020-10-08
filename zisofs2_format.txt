@@ -56,7 +56,7 @@ Offset     Type         Identifier    Contents
 --------------------------------------------------------------------------
   0        (8 bytes)    @hdr_magic    Magic num (EF 22 55 A1 BC 1B 95 A0)
   8        7.1.1        @hdr_version  File header version (0)
-  9        7.1.1        @hdr_size     header_size >> 2 (5)
+  9        7.1.1        @hdr_size     header_size >> 2 (6)
  10        7.1.1        @alg_id       Algorithm Type (>=1)
  11        7.1.1        @hdr_bsize    log2(block_size) (15, 16, or 17)
  12        #uint64      @size         Uncompressed file size

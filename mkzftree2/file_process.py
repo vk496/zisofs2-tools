@@ -1,5 +1,6 @@
+from mkzftree2.arguments import output_dir
 import os
-from mkzftree2.compressor import compress_file
+from mkzftree2.compressor import compress_file, uncompress_file
 from mkzftree2.utils import clone_dir_attributes
 
 def sizeof_fmt(num, suffix='B'):
@@ -40,6 +41,26 @@ def find_files(source_dir, restrict_search, followLinks):
                 list_files.append(x)
 
     return list_files
+
+def uncompress_files(input_dir, output_dir):
+    """
+    docstring
+    """
+    for source_file in input_dir.iterdir():
+        target_file = output_dir / source_file.relative_to(input_dir)
+
+        if source_file.is_file():
+            # Handle files
+            if source_file.is_symlink():
+                target_file.symlink_to(os.readlink(source_file))
+                continue
+            else:
+                # Regular file
+                uncompress_file(source_file, target_file)
+        elif source_file.is_dir():
+            target_file.mkdir(parents=True)
+            # Use fake file to get correct dir path
+            clone_dir_attributes((source_file / 'fake.txt').parents, (target_file / 'fake.txt').parents) 
 
 
 def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, blocksize, force, legacy, ignore_attributes):

@@ -1,33 +1,85 @@
 import math
-from mkzftree2.iso9660 import int_to_iso711, int_to_iso731, iso711_to_int, int_to_uint64
-
+from mkzftree2.iso9660 import int_to_iso711, int_to_iso731, iso711_to_int, int_to_uint64, iso731_to_int, uint64_to_int
+from mkzftree2.arguments import default_block_sizes
 
 class commonZisofs:
     blocksize = None  # Block size
+    hdr_size = None
+    header = None
 
-    def get_blocksize(self):
+
+    @classmethod
+    def get_header_size(cls):
+        """
+        docstring
+        """
+        return 4*iso711_to_int(cls.hdr_size)
+
+    @classmethod
+    def get_blocksize(cls):
         # ZISOFS.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
-        return 2 ** iso711_to_int(self.blocksize)
+        return 2 ** iso711_to_int(cls.blocksize)
 
 
 class ZISOFS(commonZisofs):
     # HEADER
     hdr_magic = b'\x37\xE4\x53\x96\xC9\xDB\xD6\x07'  # Magick Header
-    ufs_l = None  # Uncompressed size
+    size = None  # Uncompressed size
     hdr_size = int_to_iso711(4)  # Header size
 
     # Array
     pointers_size = 4
 
-    def __init__(self, size, blocksize):
-        # The conversion check the maximum size and raise exception if is exceded
-        self.ufs_l = int_to_iso731(size)
+    @staticmethod
+    def from_header(header):
+        """
+        docstring
+        """
+        # Make sure is bytes
+        if not isinstance(header, (bytes, bytearray)): raise ValueError
+        # Correct size
+        if len(header) != 4*iso711_to_int(ZISOFS.hdr_size): raise ValueError
+
+
+        # Header magic
+        if header[0:8] != ZISOFS.hdr_magic: raise ValueError
+
+        # Header size
+        if header[12:13] != ZISOFS.hdr_size: raise ValueError
+
+        zisofs_obj = ZISOFS()
+        
+        # File size
+        zisofs_obj.size = header[8:12]
+
+        # Blocksize
+        if iso711_to_int(header[11:12]) not in default_block_sizes: raise ValueError
+        zisofs_obj.blocksize = header[13:14]
+
+        return zisofs_obj
+        
+    def set_size(self, size):
+        """
+        docstring
+        """
+        self.size = int_to_iso731(size)
+
+    def get_size(self):
+        """
+        docstring
+        """
+        return iso731_to_int(self.size)
+
+    def set_blocksize(self, blocksize):
+        """
+        docstring
+        """
         self.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
 
     def __bytes__(self):
         header = bytearray()
         header.extend(self.hdr_magic)  # 8
-        header.extend(self.ufs_l)  # 4
+        header.extend(self.size)  # 4
         header.extend(self.hdr_size)  # 1
         header.extend(self.blocksize)  # 1
         header.extend(bytearray(2))  # 2
@@ -40,18 +92,69 @@ class ZISOFSv2(commonZisofs):
     # Header
     hdr_magic = b'\xEF\x22\x55\xA1\xBC\x1B\x95\xA0'  # Magick Header
     hdr_version = int_to_iso711(0)
-    hdr_size = int_to_iso711(5)  # 24 bytes size
+    hdr_size = int_to_iso711(6)  # 24 bytes size
     alg_id = None
     size = None
 
     # Array
     pointers_size = 8
 
-    def __init__(self, size, blocksize, algorithm):
+    @staticmethod
+    def from_header(header):
+        """
+        docstring
+        """
+        # Make sure is bytes
+        if not isinstance(header, (bytes, bytearray)): raise ValueError
+        # Correct size
+        if len(header) != 4*iso711_to_int(ZISOFSv2.hdr_size): raise ValueError
 
+
+        # Header magic
+        if header[0:8] != ZISOFSv2.hdr_magic: raise ValueError
+
+        # Header size
+        if header[9:10] != ZISOFSv2.hdr_size: raise ValueError
+
+        zisofs_obj = ZISOFSv2()
+
+        # Algorithm
+        if iso711_to_int(header[10:11]) == 0: raise ValueError
+        zisofs_obj.alg_id = header[10:11]
+
+        # Blocksize
+        if iso711_to_int(header[11:12]) not in default_block_sizes: raise ValueError
+        zisofs_obj.alg_id = header[11:12]
+        
+        # File size
+        zisofs_obj.size = header[12:20]
+
+
+        return zisofs_obj
+
+
+    def set_size(self, size):
+        """
+        docstring
+        """
         self.size = int_to_uint64(size)
+
+    def get_size(self):
+        """
+        docstring
+        """
+        return uint64_to_int(self.size)
+
+    def set_blocksize(self, blocksize):
+        """
+        docstring
+        """
         self.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
 
+    def set_alg(self, algorithm):
+        """
+        docstring
+        """
         if algorithm == 'zlib':
             alg_id = 1
         elif algorithm == 'xz':
@@ -66,6 +169,7 @@ class ZISOFSv2(commonZisofs):
             raise ValueError(f"Illegal algorithm {algorithm}")
         self.alg_id = int_to_iso711(alg_id)
 
+
     def __bytes__(self):
         header = bytearray()
         header.extend(self.hdr_magic)  # 8
@@ -78,29 +182,74 @@ class ZISOFSv2(commonZisofs):
 
         return bytes(header)
 
+class FileUnknownObject:
+    """
+    docstring
+    """
+    is_zisofsv2 = None
+
+    def __init__(self, input_file):
+        """
+        docstring
+        """
+        self.input_file = input_file
+
+        with open(self.input_file, 'rb') as in_fd:
+            data = in_fd.read(ZISOFSv2.get_header_size())
+
+        
+        
+
 
 class FileObject:
-    target_dir = None
-    source_dir = None
 
+    header = None
     # Instance functions
-    def __init__(self, source_file, target_file, alg, blocksize, isLegacy):
+
+    def __init__(self, source_file, alg=None, blocksize=None, isLegacy=None):
         self.source_file = source_file
-        self.target_file = target_file
 
-        if isLegacy:
-            self.header = ZISOFS(self.getInputSize(), blocksize)
+        if all(v is not None for v in [alg, blocksize, isLegacy]):
+            if isLegacy:
+                self.header = ZISOFS()
+                self.header.set_size(self.source_file.stat().st_size)
+                self.header.set_blocksize(blocksize)
+                
+            else:
+                self.header = ZISOFSv2()
+                self.header.set_size(self.source_file.stat().st_size)
+                self.header.set_blocksize(blocksize)
+                self.header.set_alg(alg)
         else:
-            self.header = ZISOFSv2(self.getInputSize(), blocksize, alg)
+            with open(self.source_file, 'rb') as in_fd:
+                header = in_fd.read(32)
 
-    def getFileSource(self):
-        return self.source_file
+            try:
+                hdr_obj = ZISOFSv2.from_header(header[0:ZISOFSv2.get_header_size()])
+            except ValueError:
+                #Maybe a v1 ziso?
+                hdr_obj = ZISOFS.from_header(header[0:ZISOFS.get_header_size()])
 
-    def getFileTarget(self):
-        return self.target_file
+            self.header = hdr_obj
 
-    def getInputSize(self):
-        return self.source_file.stat().st_size
+    def get_chunks(self):
+        """
+        docstring
+        """
+        fd = open(self.source_file, 'rb')
+        #TODO
+        while True:
+            data = fd.read(chunk_size)
+            if not data:
+                break
+            yield data
+
+    def _get_numblocks(self):
+        """
+        docstring
+        """
+        return int(
+            math.ceil((self.header.get_size() / self.header.get_blocksize())) + 1)
 
     def generate_header(self):
         return bytes(self.header)
@@ -111,7 +260,7 @@ class FileObject:
         If no list of pointers are given, return a blank array
         """
         nblocks = int(
-            math.ceil((self.getInputSize() / self.header.get_blocksize())) + 1)
+            math.ceil((self.source_file.stat().st_size / self.header.get_blocksize())) + 1)
 
         if list_pointers:
             if len(list_pointers) != nblocks:

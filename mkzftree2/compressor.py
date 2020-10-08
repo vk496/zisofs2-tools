@@ -5,9 +5,33 @@ from pathlib import Path
 import lz4.frame
 import zstandard as zstd
 
-from mkzftree2.models.FileObject import FileObject
+from mkzftree2.models.FileObject import FileObject, FileUnknownObject
 from mkzftree2.arguments import default_block_sizes, default_compressors
 from mkzftree2.utils import clone_attributes, clone_dir_attributes
+
+
+def uncompress_file(input_file, output_file, copy_attributes=True):
+    """
+    docstring
+    """
+
+    in_file = Path(input_file) if not isinstance(
+        input_file, Path) else input_file
+    out_file = Path(output_file) if not isinstance(
+        output_file, Path) else output_file
+
+    try:
+        fobj = FileObject(in_file)
+        print("xd")
+    except ValueError:
+        # Not compressed. Just copy
+        with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
+            dst.write(src.read())  # TODO: Check memory usage for big files
+
+    if copy_attributes:
+        clone_attributes(in_file, out_file)
+        clone_dir_attributes(in_file.parents, out_file.parents)
+
 
 
 def compress_file(input_file, output_file,
@@ -28,13 +52,12 @@ def compress_file(input_file, output_file,
     if algorithm not in default_compressors:
         raise ValueError(f"Not a valid {algorithm}")
 
-    fobj = FileObject(in_file, out_file, alg=algorithm,
+    fobj = FileObject(in_file, alg=algorithm,
                       blocksize=blocksize, isLegacy=legacy)
 
     # If target directory doesn't exist, create all of them
     if not out_file.parent.exists():
         out_file.parent.mkdir(parents=True)
-
 
     with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
         pointers_table = []
