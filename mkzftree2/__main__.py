@@ -19,7 +19,7 @@ def main(args=None):
     list_files = find_files(source, opt.file, opt.follow_symlinks)
 
     process_files(list_files, source, target, opt.overwrite, opt.a,
-                  opt.z, blocksize, opt.force, opt.legacy)
+                  opt.z, blocksize, opt.force, opt.legacy, opt.ignore_attributes)
 
     # Process
     # d = FileObject.get_smallfiles()

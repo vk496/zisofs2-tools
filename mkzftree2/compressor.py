@@ -3,10 +3,11 @@ import bz2
 import lzma
 from pathlib import Path
 import lz4.frame
-import zstandard as zstd  # Compressors
+import zstandard as zstd
 
 from mkzftree2.models.FileObject import FileObject
 from mkzftree2.arguments import default_block_sizes, default_compressors
+from mkzftree2.utils import clone_attributes, clone_dir_attributes
 
 
 def compress_file(input_file, output_file,
@@ -14,12 +15,14 @@ def compress_file(input_file, output_file,
                   algorithm='zlib',
                   zlevel=6,
                   force=False,
-                  legacy=False):
+                  legacy=False,
+                  copy_attributes=True):
 
     in_file = Path(input_file) if not isinstance(
         input_file, Path) else input_file
     out_file = Path(output_file) if not isinstance(
         output_file, Path) else output_file
+
     if blocksize not in [2**x for x in default_block_sizes]:
         raise ValueError(f"Not a valid {blocksize}")
     if algorithm not in default_compressors:
@@ -28,9 +31,12 @@ def compress_file(input_file, output_file,
     fobj = FileObject(in_file, out_file, alg=algorithm,
                       blocksize=blocksize, isLegacy=legacy)
 
-    fobj.create_parentDir()  # If the file must be place in some subfolder
+    # If target directory doesn't exist, create all of them
+    if not out_file.parent.exists():
+        out_file.parent.mkdir(parents=True)
 
-    with open(fobj.getFileSource(), 'rb') as src, open(fobj.getFileTarget(), 'wb') as dst:
+
+    with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
         pointers_table = []
 
         # File header
@@ -65,7 +71,12 @@ def compress_file(input_file, output_file,
             dst.seek(len(ziso_header))  # Just after the header
             dst.write(fobj.getTablePointers(list_pointers=pointers_table))
 
-        return ratio
+    # Copy attributes from original file
+    if copy_attributes:
+        clone_attributes(in_file, out_file)
+        clone_dir_attributes(in_file.parents, out_file.parents)
+
+    return ratio
 
 
 # https://stackoverflow.com/a/519653

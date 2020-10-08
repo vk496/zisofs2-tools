@@ -134,7 +134,3 @@ class FileObject:
             return bytes(data)
         
         return bytes(nblocks * self.header.pointers_size)
-
-    def create_parentDir(self):
-        if not self.target_file.parent.exists():
-            self.target_file.parent.mkdir(parents=True)

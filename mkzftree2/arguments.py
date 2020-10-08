@@ -53,6 +53,9 @@ def get_options(args):
     parser.add_argument('-f', '--force',
                         default=False, action='store_true',
                         help="Always compress, even if result is larger")
+    parser.add_argument('--ignore-attributes',
+                        default=False, action='store_true',
+                        help="Don't copy source file attributes")
     parser.add_argument('--legacy', default=False,
                         action='store_true', help="Generate old ZISOFSv1 tree")
     parser.add_argument('-o', '--overwrite', default=False,

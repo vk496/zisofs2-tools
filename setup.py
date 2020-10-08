@@ -36,6 +36,7 @@ setuptools.setup(
     install_requires=[
         'lz4 >= 3.1.0',
         'zstandard >= 0.14.0',
+        'pywin32 >= 1.0 ; platform_system=="Windows"'
     ],
     tests_require=test_deps,
     extras_require=extras,

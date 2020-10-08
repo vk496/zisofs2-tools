@@ -1,6 +1,6 @@
 import os
 from mkzftree2.compressor import compress_file
-
+from mkzftree2.utils import clone_dir_attributes
 
 def sizeof_fmt(num, suffix='B'):
     for unit in ['', ' Ki', ' Mi', ' Gi', ' Ti', ' Pi', ' Ei', ' Zi']:
@@ -33,12 +33,16 @@ def find_files(source_dir, restrict_search, followLinks):
                 list_files.append(x)
         elif x.is_dir():
             l = find_files(x, restrict_search, followLinks)
-            list_files.extend(l)
+            if l:
+                list_files.extend(l)
+            else:
+                # Empty dir
+                list_files.append(x)
 
     return list_files
 
 
-def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, blocksize, force, legacy):
+def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, blocksize, force, legacy, ignore_attributes):
     osizesum = 0
     csizesum = 0
     for f in list_files:
@@ -54,6 +58,14 @@ def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, bl
                 # The symlink is inside the source dir. Create its correspondent symlink in target_dir
                 target_file.symlink_to(os.readlink(f))
                 continue
+        elif f.is_dir():
+            # Is a empty dir
+            target_file.mkdir(parents=True)
+            if not ignore_attributes:
+                # Use fake file to get correct dir path
+                clone_dir_attributes((f / 'fake.txt').parents, (target_file / 'fake.txt').parents) 
+
+            continue
 
         osizesum += f.stat().st_size
 
