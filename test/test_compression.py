@@ -78,7 +78,7 @@ def test_compress(input_file_tuple, output_file, alg, blocksize, force, legacy, 
             )
 
     if legacy and alg != "zlib":
-        with pytest.raises(IllegalArgumentError, message="Legacy only support zlib"):
+        with pytest.raises(IllegalArgumentError, match="Legacy only support zlib"):
             call_compress()
         return #Skip the rest
     
