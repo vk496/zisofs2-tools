@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+from mkzftree2.models.algoritm import Algorithm
 
 
 def input_dir(in_dir):
@@ -25,7 +26,6 @@ def input_files(in_file):
 
 
 default_block_sizes = [15, 16, 17]
-default_compressors = ['zlib', 'xz', 'lz4', 'zstd', 'bzip2']
 
 
 def get_options(args):
@@ -42,7 +42,7 @@ def get_options(args):
                         type=input_files, action='store', nargs='*', help="Optional input file")
 
     parser.add_argument('-a',
-                        choices=default_compressors, default='zlib', type=str,
+                        choices=Algorithm.list_all(), default='zlib', type=str,
                         help="Compression algorithm")
     parser.add_argument('-b', '--blocksize',
                         choices=default_block_sizes, type=int, default=15,
@@ -53,6 +53,9 @@ def get_options(args):
     parser.add_argument('-f', '--force',
                         default=False, action='store_true',
                         help="Always compress, even if result is larger")
+    parser.add_argument('--ignore-attributes',
+                        default=False, action='store_true',
+                        help="Don't copy source file attributes")
     parser.add_argument('--legacy', default=False,
                         action='store_true', help="Generate old ZISOFSv1 tree")
     parser.add_argument('-o', '--overwrite', default=False,

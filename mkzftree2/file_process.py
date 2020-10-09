@@ -3,6 +3,7 @@ import os
 from mkzftree2.compressor import compress_file, uncompress_file
 from mkzftree2.utils import clone_dir_attributes
 
+
 def sizeof_fmt(num, suffix='B'):
     for unit in ['', ' Ki', ' Mi', ' Gi', ' Ti', ' Pi', ' Ei', ' Zi']:
         if abs(num) < 1024.0:
@@ -25,7 +26,7 @@ def find_files(source_dir, restrict_search, followLinks):
                     raise FileExistsError(
                         (f'{x} (symlink to {x.resolve()}) is not '
                          'part of {source_dir}. Consider using --follow-symlinks')
-                         ) from exception
+                    ) from exception
 
             if restrict_search:
                 if x in restrict_search:
@@ -42,6 +43,7 @@ def find_files(source_dir, restrict_search, followLinks):
 
     return list_files
 
+
 def uncompress_files(input_dir, output_dir):
     """
     docstring
@@ -57,10 +59,14 @@ def uncompress_files(input_dir, output_dir):
             else:
                 # Regular file
                 uncompress_file(source_file, target_file)
+                print(f"{target_file}")
+
         elif source_file.is_dir():
             target_file.mkdir(parents=True)
+            uncompress_files(source_file, target_file)
             # Use fake file to get correct dir path
-            clone_dir_attributes((source_file / 'fake.txt').parents, (target_file / 'fake.txt').parents) 
+            clone_dir_attributes(
+                (source_file / 'fake.txt').parents, (target_file / 'fake.txt').parents)
 
 
 def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, blocksize, force, legacy, ignore_attributes):
@@ -84,7 +90,8 @@ def process_files(list_files, source_dir, target_dir, overwrite, alg, zlevel, bl
             target_file.mkdir(parents=True)
             if not ignore_attributes:
                 # Use fake file to get correct dir path
-                clone_dir_attributes((f / 'fake.txt').parents, (target_file / 'fake.txt').parents) 
+                clone_dir_attributes(
+                    (f / 'fake.txt').parents, (target_file / 'fake.txt').parents)
 
             continue
 

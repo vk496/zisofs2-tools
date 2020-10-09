@@ -1,5 +1,6 @@
 from enum import Enum
 import math
+from mkzftree2.models.algoritm import Algorithm
 from mkzftree2.iso9660 import int_to_iso711, int_to_iso731, iso711_to_int, int_to_uint64, iso731_to_int, uint64_to_int
 from mkzftree2.arguments import default_block_sizes
 
@@ -174,19 +175,13 @@ class ZISOFSv2(commonZisofs):
         """
         docstring
         """
-        if algorithm == 'zlib':
-            alg_id = 1
-        elif algorithm == 'xz':
-            alg_id = 2
-        elif algorithm == 'lz4':
-            alg_id = 3
-        elif algorithm == 'zstd':
-            alg_id = 4
-        elif algorithm == 'bzip2':
-            alg_id = 5
-        else:
-            raise ValueError(f"Illegal algorithm {algorithm}")
-        self.alg_id = int_to_iso711(alg_id)
+        self.alg_id = int_to_iso711(algorithm.value)
+
+    def get_algorithm(self):
+        """
+        docstring
+        """
+        return Algorithm(iso711_to_int(self.alg_id))
 
     def __bytes__(self):
         header = bytearray()
@@ -208,6 +203,7 @@ class FileObject:
 
     def __init__(self, source_file, alg=None, blocksize=None, isLegacy=None):
         self.source_file = source_file
+        self.precalculated_table = None
 
         if all(v is not None for v in [alg, blocksize, isLegacy]):
             if isLegacy:
@@ -233,25 +229,41 @@ class FileObject:
                     header[0:ZISOFS.get_header_size()])
 
             self.header = hdr_obj
+            if self._get_numblocks() * self.header.pointers_size < 2**7:  # 20 MB size of Table as limit
+                self.precalculated_table = self._get_table_pointers()
 
     def get_chunks(self):
         """
         docstring
         """
 
-        for i in range(0, self._get_numblocks() - 1):
-            yield self.read_block(i)
-
-    def get_algorithm(self):
-        return Algorithm(iso711_to_int(self.header.alg_id))
+        with open(self.source_file, 'rb') as src:
+            for i in range(0, self._get_numblocks() - 1):
+                yield self.read_block(i, file_descriptor=src)
 
     # Random access to data
-    def read_block(self, num):
+    def get_algorithm(self):
+        """
+        docstring
+        """
+        return self.header.get_algorithm()
+
+    def read_block(self, num, file_descriptor=None):
         if num >= self._get_numblocks() - 1:
             raise ValueError
 
         psize = self.header.pointers_size  # Pointer size
-        with open(self.source_file, 'rb') as src:
+
+        # Reuse file descriptor if is given
+        if file_descriptor:
+            src = file_descriptor
+        else:
+            src = open(self.source_file, 'rb')
+
+        if self.precalculated_table:
+            start_offset = self.precalculated_table[num]
+            end_offset = self.precalculated_table[num + 1]
+        else:
             # First, get the position and size of the desired block
             table_pos = len(self.header) + num * psize
             # Go to the table
@@ -260,10 +272,34 @@ class FileObject:
             start_offset = self.header.get_pointer_value(src.read(psize))
             end_offset = self.header.get_pointer_value(src.read(psize))
 
-            # Go to the actual data
-            src.seek(start_offset)
-            data = src.read(end_offset - start_offset)
+        # Go to the actual data
+        src.seek(start_offset)
+        data = src.read(end_offset - start_offset)
+
+        if not file_descriptor:
+            # It was our file descriptor. Close it
+            src.close()
+
         return data
+
+    def _get_table_pointers(self):
+        """
+        docstring
+        """
+        psize = self.header.pointers_size  # Pointer size
+        table = []
+        with open(self.source_file, 'rb') as src:
+            # First, get the position and size of the desired block
+
+            # Go to the table
+            src.seek(len(self.header))
+
+            # For all blocks
+            for _ in range(self._get_numblocks()):
+                start_offset = self.header.get_pointer_value(src.read(psize))
+                table.append(start_offset)
+
+        return table
 
     def _get_numblocks(self):
         """

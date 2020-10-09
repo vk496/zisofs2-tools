@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from mkzftree2.models.FileObject import FileObject
-from mkzftree2.arguments import default_block_sizes, default_compressors
+from mkzftree2.arguments import default_block_sizes
 from mkzftree2.utils import clone_attributes, clone_dir_attributes
 from mkzftree2.models.algoritm import Algorithm
 
@@ -21,14 +21,18 @@ def uncompress_file(input_file, output_file, copy_attributes=True):
         # Not compressed. Just copy
         with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
             dst.write(src.read())  # TODO: Check memory usage for big files
+            if copy_attributes:
+                clone_attributes(in_file, out_file)
+                clone_dir_attributes(in_file.parents, out_file.parents)
+            return
+
+    with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
+        alg = fobj.get_algorithm()
+        for cdata in fobj.get_chunks():
+            raw_data = alg.data_decompress(cdata)
+            dst.write(raw_data)  # TODO: Check memory usage for big files
 
     
-    for data in fobj.get_chunks():
-        print(len(data))
-
-    if copy_attributes:
-        clone_attributes(in_file, out_file)
-        clone_dir_attributes(in_file.parents, out_file.parents)
 
 
 
@@ -47,8 +51,7 @@ def compress_file(input_file, output_file,
 
     if blocksize not in [2**x for x in default_block_sizes]:
         raise ValueError(f"Not a valid {blocksize}")
-    if algorithm not in default_compressors:
-        raise ValueError(f"Not a valid {algorithm}")
+    algorithm = Algorithm.from_arg(algorithm)
 
     fobj = FileObject(in_file, alg=algorithm,
                       blocksize=blocksize, isLegacy=legacy)
@@ -72,7 +75,7 @@ def compress_file(input_file, output_file,
 
             if not all(byte == 0 for byte in chunk):
                 # Zero blocks will be skipped
-                data = _compress_chunk(chunk, algorithm, zlevel)
+                data = algorithm.data_compress(chunk, zlevel)
                 dst.write(data)
 
         pointers_table.append(dst.tell())  # Last block

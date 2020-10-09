@@ -1,5 +1,4 @@
 from enum import Enum
-from mkzftree2.arguments import default_compressors
 
 import zlib
 import bz2
@@ -16,9 +15,27 @@ class Algorithm(Enum):
 
     @classmethod
     def from_arg(cls, value):
-        return Algorithm(default_compressors.index(value))
+        return Algorithm(Algorithm.list_all().index(value)+1)
 
-    def compress(self, chunk, preset):
+    @classmethod
+    def list_all(cls):
+        return [ i[0].lower() for i in cls.__members__.items() ]
+
+    def data_decompress(self, chunk):
+        if self == Algorithm.ZLIB:
+            return zlib.decompress(chunk)
+        elif self == Algorithm.XZ:
+            return lzma.decompress(chunk)
+        elif self == Algorithm.LZ4:
+            return lz4.frame.decompress(chunk)
+        elif self == Algorithm.ZSTD:
+            return zstd.ZstdDecompressor().decompress(chunk)
+        elif self == Algorithm.BZIP2:
+            return bz2.decompress(chunk)
+        else:
+            raise NotImplementedError(f"{self} compressor not supported")
+
+    def data_compress(self, chunk, preset):
         if self == Algorithm.ZLIB:
             return zlib.compress(chunk, level=preset)
         elif self == Algorithm.XZ:
