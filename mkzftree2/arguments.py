@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from mkzftree2.models.algoritm import Algorithm
+from mkzftree2.models.algorithm import Algorithm
 
 
 def input_dir(in_dir):
@@ -62,7 +62,7 @@ def get_options(args):
                         action='store_true', help="Overwrite if file exist (Default: skip)")
     parser.add_argument('-u', '--uncompress', default=False,
                         action='store_true', help="Uncompress mode (Default: compress)")
-    parser.add_argument('-v', '--version', action='version', version="1.0")
+    parser.add_argument('-v', '--version', action='version', version="0.2")
     parser.add_argument('-z', choices=range(1, 10),
                         metavar="[1-9]", type=int, default=6, help="Compression level")
 

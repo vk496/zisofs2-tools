@@ -1,9 +1,9 @@
 from enum import Enum
 import math
-from mkzftree2.models.algoritm import Algorithm
+from mkzftree2.models.algorithm import Algorithm
 from mkzftree2.iso9660 import int_to_iso711, int_to_iso731, iso711_to_int, int_to_uint64, iso731_to_int, uint64_to_int
 from mkzftree2.arguments import default_block_sizes
-
+from mkzftree2.utils import IllegalZisofsFormat, NotCompressedFile
 
 class commonZisofs:
     blocksize = None  # Block size
@@ -48,20 +48,24 @@ class ZISOFS(commonZisofs):
         """
         docstring
         """
+
+        header = header[0:ZISOFS.get_header_size()]
+
         # Make sure is bytes
         if not isinstance(header, (bytes, bytearray)):
             raise ValueError
-        # Correct size
-        if len(header) != 4*iso711_to_int(ZISOFS.hdr_size):
-            raise ValueError
-
         # Header magic
         if header[0:8] != ZISOFS.hdr_magic:
-            raise ValueError
+            raise NotCompressedFile
+
+        # Correct size
+        if len(header) != 4*iso711_to_int(ZISOFS.hdr_size):
+            raise IllegalZisofsFormat
+
 
         # Header size
         if header[12:13] != ZISOFS.hdr_size:
-            raise ValueError
+            raise IllegalZisofsFormat
 
         zisofs_obj = ZISOFS()
 
@@ -69,8 +73,8 @@ class ZISOFS(commonZisofs):
         zisofs_obj.size = header[8:12]
 
         # Blocksize
-        if iso711_to_int(header[11:12]) not in default_block_sizes:
-            raise ValueError
+        if iso711_to_int(header[13:14]) not in default_block_sizes:
+            raise IllegalZisofsFormat
         zisofs_obj.blocksize = header[13:14]
 
         return zisofs_obj
@@ -92,6 +96,12 @@ class ZISOFS(commonZisofs):
         docstring
         """
         self.blocksize = int_to_iso711(int(math.log(blocksize, 2)))
+
+    def get_algorithm(self):
+        """
+        docstring
+        """
+        return Algorithm(1) # Force return ZLIB compressor
 
     def __bytes__(self):
         header = bytearray()
@@ -121,31 +131,34 @@ class ZISOFSv2(commonZisofs):
         """
         docstring
         """
+
+        header = header[0:ZISOFSv2.get_header_size()]
         # Make sure is bytes
         if not isinstance(header, (bytes, bytearray)):
             raise ValueError
-        # Correct size
-        if len(header) != 4*iso711_to_int(ZISOFSv2.hdr_size):
-            raise ValueError
-
         # Header magic
         if header[0:8] != ZISOFSv2.hdr_magic:
-            raise ValueError
+            raise NotCompressedFile
+
+        # Correct size
+        if len(header) != 4*iso711_to_int(ZISOFSv2.hdr_size):
+            raise IllegalZisofsFormat
+
 
         # Header size
         if header[9:10] != ZISOFSv2.hdr_size:
-            raise ValueError
+            raise IllegalZisofsFormat
 
         zisofs_obj = ZISOFSv2()
 
         # Algorithm
         if iso711_to_int(header[10:11]) == 0:
-            raise ValueError
+            raise IllegalZisofsFormat
         zisofs_obj.alg_id = header[10:11]
 
         # Blocksize
         if iso711_to_int(header[11:12]) not in default_block_sizes:
-            raise ValueError
+            raise IllegalZisofsFormat
         zisofs_obj.blocksize = header[11:12]
 
         # File size
@@ -223,7 +236,7 @@ class FileObject:
             try:
                 hdr_obj = ZISOFSv2.from_header(
                     header[0:ZISOFSv2.get_header_size()])
-            except ValueError:
+            except NotCompressedFile:
                 # Maybe a v1 ziso?
                 hdr_obj = ZISOFS.from_header(
                     header[0:ZISOFS.get_header_size()])

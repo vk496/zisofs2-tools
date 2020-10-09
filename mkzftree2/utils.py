@@ -1,6 +1,14 @@
 import os
 import platform
 
+class IllegalArgumentError(ValueError):
+    pass
+
+class NotCompressedFile(ValueError):
+    pass
+
+class IllegalZisofsFormat(ValueError):
+    pass
 
 def clone_attributes(input_file, output_file):
     """

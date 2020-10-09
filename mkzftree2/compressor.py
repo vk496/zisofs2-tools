@@ -1,9 +1,10 @@
+from argparse import ArgumentError
 from pathlib import Path
 
 from mkzftree2.models.FileObject import FileObject
 from mkzftree2.arguments import default_block_sizes
-from mkzftree2.utils import clone_attributes, clone_dir_attributes
-from mkzftree2.models.algoritm import Algorithm
+from mkzftree2.utils import NotCompressedFile, clone_attributes, clone_dir_attributes, IllegalArgumentError
+from mkzftree2.models.algorithm import Algorithm
 
 def uncompress_file(input_file, output_file, copy_attributes=True):
     """
@@ -17,7 +18,7 @@ def uncompress_file(input_file, output_file, copy_attributes=True):
 
     try:
         fobj = FileObject(in_file)
-    except ValueError:
+    except NotCompressedFile:
         # Not compressed. Just copy
         with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
             dst.write(src.read())  # TODO: Check memory usage for big files
@@ -51,7 +52,10 @@ def compress_file(input_file, output_file,
 
     if blocksize not in [2**x for x in default_block_sizes]:
         raise ValueError(f"Not a valid {blocksize}")
+
     algorithm = Algorithm.from_arg(algorithm)
+
+    if legacy and algorithm != Algorithm.ZLIB: raise IllegalArgumentError("Legacy only support zlib")
 
     fobj = FileObject(in_file, alg=algorithm,
                       blocksize=blocksize, isLegacy=legacy)
