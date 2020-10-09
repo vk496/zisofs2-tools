@@ -234,15 +234,13 @@ class FileObject:
                 header = in_fd.read(32)
 
             try:
-                hdr_obj = ZISOFSv2.from_header(
-                    header[0:ZISOFSv2.get_header_size()])
+                hdr_obj = ZISOFSv2.from_header(header)
             except NotCompressedFile:
                 # Maybe a v1 ziso?
-                hdr_obj = ZISOFS.from_header(
-                    header[0:ZISOFS.get_header_size()])
+                hdr_obj = ZISOFS.from_header(header)
 
             self.header = hdr_obj
-            if self._get_numblocks() * self.header.pointers_size < 2**7:  # 20 MB size of Table as limit
+            if self._get_numblocks() * self.header.pointers_size < 2*10**7:  # 20 MB size of Table as limit
                 self.precalculated_table = self._get_table_pointers()
 
     def get_chunks(self):
@@ -262,7 +260,10 @@ class FileObject:
         return self.header.get_algorithm()
 
     def read_block(self, num, file_descriptor=None):
-        if num >= self._get_numblocks() - 1:
+
+        valid_blocks = self._get_numblocks() - 1
+
+        if num >= valid_blocks:
             raise ValueError
 
         psize = self.header.pointers_size  # Pointer size
@@ -286,8 +287,16 @@ class FileObject:
             end_offset = self.header.get_pointer_value(src.read(psize))
 
         # Go to the actual data
-        src.seek(start_offset)
-        data = src.read(end_offset - start_offset)
+        if (end_offset - start_offset) != 0:
+            src.seek(start_offset)
+            data = src.read(end_offset - start_offset)
+        else:
+            if num == valid_blocks - 1: # Last one
+                # Last block will have different size
+                si = self.header.get_size() - self.header.get_blocksize() * (valid_blocks-1)
+                data = bytearray(si)
+            else:
+                data = bytearray(self.header.get_blocksize())
 
         if not file_descriptor:
             # It was our file descriptor. Close it
@@ -329,8 +338,7 @@ class FileObject:
         Return a byte array of the table pointers.
         If no list of pointers are given, return a blank array
         """
-        nblocks = int(
-            math.ceil((self.source_file.stat().st_size / self.header.get_blocksize())) + 1)
+        nblocks = self._get_numblocks()
 
         if list_pointers:
             if len(list_pointers) != nblocks:

@@ -30,7 +30,12 @@ def uncompress_file(input_file, output_file, copy_attributes=True):
     with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
         alg = fobj.get_algorithm()
         for cdata in fobj.get_chunks():
-            raw_data = alg.data_decompress(cdata)
+            if cdata != bytearray(len(cdata)):
+                raw_data = alg.data_decompress(cdata)
+            else:
+                # Zero block
+                raw_data = bytearray(len(cdata))
+
             dst.write(raw_data)  # TODO: Check memory usage for big files
 
     
@@ -77,7 +82,7 @@ def compress_file(input_file, output_file,
         for chunk in _read_in_chunks(src, blocksize):
             pointers_table.append(dst.tell())
 
-            if not all(byte == 0 for byte in chunk):
+            if chunk != bytes(len(chunk)):
                 # Zero blocks will be skipped
                 data = algorithm.data_compress(chunk, zlevel)
                 dst.write(data)
