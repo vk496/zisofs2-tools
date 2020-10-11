@@ -27,11 +27,7 @@ def input_files(in_file):
 
 default_block_sizes = [15, 16, 17]
 
-
-def get_options(args):
-    """
-    Creates a new argument parser.
-    """
+def _create_parser():
     parser = argparse.ArgumentParser('mkzftree2')
 
     parser.add_argument('in_dir',
@@ -66,7 +62,15 @@ def get_options(args):
     parser.add_argument('-z', choices=range(1, 10),
                         metavar="[1-9]", type=int, default=6, help="Compression level")
 
-    opt = parser.parse_args(args)
+    return parser
+
+
+def get_options(args):
+    """
+    Creates a new argument parser.
+    """
+
+    opt = _create_parser().parse_args(args)
 
     if opt.legacy and not opt.a == 'zlib':
         raise ValueError("Legacy mode only support zlib compressor")

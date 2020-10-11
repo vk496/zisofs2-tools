@@ -35,12 +35,6 @@ def input_file_tuple(tmpdir_factory):
 
 
 @pytest.yield_fixture
-def input_file_empty(tmpdir):
-    out_file = Path(tmpdir / "__init__.py")
-    out_file.touch()
-    yield out_file
-
-@pytest.yield_fixture
 def input_file_full(tmpdir):
     random.seed(0)
     size=8*10**6
