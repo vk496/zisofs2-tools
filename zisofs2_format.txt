@@ -11,12 +11,16 @@
 The zisofs2 format was invented by Valentín KIVACHUK BURDÁ and 
 Thomas SCHMITT (as extension of zisofs by H. Peter Anvin). It compresses
 data file content, marks it by a header and provides a pointer array for 
-coarse random access. Within a RRIP enhanced ISO 9660 image the format 
+coarse random access. Within a RRIP enhanced ISO 9660 image the format
 is additionally marked by a System Use entry with signature "ZF".
 
-The uncompressed size of a single zisofs compressed file is restricted
-to 2^64 - 1 bytes. Larger files shall not be compressed. 
-Refer to **LEGACY**
+The uncompressed size of a single zisofs2 compressed file is restricted
+to 2^64 - 1 bytes. Larger files shall not be compressed.
+
+The format of version 1 of zisofs is supported by this specification.
+Using it for files with uncompressed size smaller than 4 GiB is friendly
+towards software which does not know about zisofs2.
+See section **LEGACY** for a summary of version 1 of zisofs.
 
 
 
@@ -65,14 +69,8 @@ Offset     Type         Identifier    Contents
 So its size is 24.
 
 Readers shall be able to handle log2(block_size) values 15, 16 and 17
-i.e. block sizes 32 kB, 64 kB, and 128 kB. Writers must not use 
+i.e. block sizes 32 kB, 64 kB, and 128 kB. Writers must not use
 other sizes.
-
-The format of version 1 of zisofs is supported by this specification.
-Using it for files with uncompressed size smaller than 4 GiB is friendly
-towards software which does not know about zisofs2.
-See section **LEGACY** for a summary of version 1 of zisofs.
-
 
                                Block Pointers
 
@@ -149,9 +147,10 @@ Example (block size 128 kiB, uncompressed file size = 40 TB):
 
 
 
-**LEGACY**
-zisofs2 support old readers by respecting the zisofs format. This section
-describes which definitions from zisofs2 must change to be compatible 
+                                 **LEGACY**
+
+zisofs2 supports old readers by respecting the zisofs format. This section
+describes which definitions from zisofs2 must change to be compatible
 with zisofs.
 
 - General behaviour
@@ -159,9 +158,9 @@ with zisofs.
   to 4 GiB - 1. Larger files shall not be compressed.
 
 - Supported algorithms
-  Only algorithm Zlib with default strategy is supported
+  Only algorithm Zlib with default strategy is supported.
 
-- The file header must follow the next structure
+- The file header must follow this structure:
 
   Offset   Type        Identifier    Contents
     0      (8 bytes)   @hdr_magic    Magic number (37 E4 53 96 C9 DB D6 07)
@@ -169,11 +168,11 @@ with zisofs.
    12      7.1.1       @hdr_size     header_size >> 2 (4)
    13      7.1.1       @hdr_bsize    log2(block_size) (15, 16, or 17)
    14      (2 bytes)   -             Reserved, must be zero
-    
-So its size is 16.
+
+  So its size is 16.
 
 - Block pointers
-  The array must use ISO 9660:7.3.1 (4 bytes) values
+  The array must use ISO 9660:7.3.1 (4 bytes) values.
 
 - ZF entry
 
@@ -185,11 +184,11 @@ Its fields are:
 
   [3] "BP 4 - System Use Entry Version" must be 1.
 
-  [4] "BP 5 to BP 6 - Algorithm" must be (70)(7A) ("pz")
+  [4] "BP 5 to BP 6 - Algorithm" must be (70)(7A) ("pz").
 
-  [5] "BP 7 - Header Size Div 4" - same as zisofs2
+  [5] "BP 7 - Header Size Div 4" - same as zisofs2.
 
-  [6] "BP 8 - Log2 of Block Size" - same as zisofs2
+  [6] "BP 8 - Log2 of Block Size" - same as zisofs2.
 
   [7] "BP 9 to BP 16 - Uncompressed Size" This field shall be recorded
       according to ISO 9660:7.3.3.
@@ -233,7 +232,7 @@ Copyright (c) 2009 - 2010, 2020 Thomas SCHMITT <scdbackup@gmx.net>
 Copyright (c) 2020 - Valentín KIVACHUK BURDÁ <mail@vk496.es>
 It shall reflect the effective technical specifications as implemented in
 zisofs2-tools and the Linux kernel. So please contact mailing list
-<bug-xorriso@gnu.org> or to the copyright holder in private, if you
+<bug-xorriso@gnu.org> or to the copyright holders in private, if you
 want to make changes.
 Only if you cannot reach the copyright holder for at least one month it is
 permissible to modify and distribute this text under the license "GPLv3".
