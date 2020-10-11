@@ -27,6 +27,7 @@ def input_files(in_file):
 
 default_block_sizes = [15, 16, 17]
 
+
 def _create_parser():
     parser = argparse.ArgumentParser('mkzftree2')
 
@@ -35,32 +36,47 @@ def _create_parser():
     parser.add_argument('out_dir',
                         type=output_dir, action='store', nargs=1, help="Output directory")
     parser.add_argument('file',
-                        type=input_files, action='store', nargs='*', help="Optional input file")
+                        type=input_files, action='store', nargs='*',
+                        help="Optional input file. If specified, the rest of the files inside in_dir will be omited")
 
-    parser.add_argument('-a',
+    group_compression = parser.add_argument_group('compression', 'Arguments related to compression')
+    group_decompression = parser.add_argument_group('decompression', 'Arguments related to decompression')
+
+    group_compression.add_argument('-a',
                         choices=Algorithm.list_all(), default='zlib', type=str,
                         help="Compression algorithm")
-    parser.add_argument('-b', '--blocksize',
+    group_compression.add_argument('-b', '--blocksize',
                         choices=default_block_sizes, type=int, default=15,
                         help="Blocksize can be 15 (32kb), 16 (64kb) or 17 (128kb)")
-    parser.add_argument('--follow-symlinks',
+    group_compression.add_argument('--follow-symlinks',
                         default=False, action='store_true',
                         help="Process symlinks outside in_dir as regular files")
-    parser.add_argument('-f', '--force',
+    group_compression.add_argument('-f', '--force',
                         default=False, action='store_true',
                         help="Always compress, even if result is larger")
-    parser.add_argument('--ignore-attributes',
+    group_compression.add_argument('--ignore-attributes',
                         default=False, action='store_true',
                         help="Don't copy source file attributes")
-    parser.add_argument('--legacy', default=False,
+    group_compression.add_argument('--legacy', default=False,
                         action='store_true', help="Generate old ZISOFSv1 tree")
-    parser.add_argument('-o', '--overwrite', default=False,
+    group_compression.add_argument('-o', '--overwrite', default=False,
                         action='store_true', help="Overwrite if file exist (Default: skip)")
-    parser.add_argument('-u', '--uncompress', default=False,
-                        action='store_true', help="Uncompress mode (Default: compress)")
+    group_compression.add_argument('-z', choices=range(1, 23),
+                        metavar="[1-22]", type=int, default=6, 
+                        help="""
+                        Compression levels:
+                        zlib/xz/bzip2: 1-9,
+                        lz4: 1-16,
+                        zstd: 1-22
+                        """
+                        )
+    
+    group_decompression.add_argument('-u', '--uncompress', default=False,
+                        action='store_true', help="Uncompress data from in_dir to out_dir")
+
+    group_decompression.add_argument('--fuse', default=False,
+                        action='store_true', help="Mount out_dir with libfuse instead of decompressing")
     parser.add_argument('-v', '--version', action='version', version="0.2")
-    parser.add_argument('-z', choices=range(1, 10),
-                        metavar="[1-9]", type=int, default=6, help="Compression level")
 
     return parser
 
