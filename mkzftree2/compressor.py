@@ -28,17 +28,8 @@ def uncompress_file(input_file, output_file, copy_attributes=True):
             return
 
     with open(in_file, 'rb') as src, open(out_file, 'wb') as dst:
-        alg = fobj.get_algorithm()
-        for cdata in fobj.get_chunks():
-            if cdata != bytearray(len(cdata)):
-                raw_data = alg.data_decompress(cdata)
-            else:
-                # Zero block
-                raw_data = bytearray(len(cdata))
-
-            dst.write(raw_data)  # TODO: Check memory usage for big files
-
-    
+        for data in fobj.get_chunks():
+            dst.write(data)  # TODO: Check memory usage for big files
 
 
 

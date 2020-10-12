@@ -1,9 +1,12 @@
 from enum import Enum
+import os
+from pathlib import Path
 import math
 from mkzftree2.models.algorithm import Algorithm
 from mkzftree2.iso9660 import int_to_iso711, int_to_iso731, iso711_to_int, int_to_uint64, iso731_to_int, uint64_to_int
 from mkzftree2.arguments import default_block_sizes
 from mkzftree2.utils import IllegalZisofsFormat, NotCompressedFile
+
 
 class commonZisofs:
     blocksize = None  # Block size
@@ -62,7 +65,6 @@ class ZISOFS(commonZisofs):
         if len(header) != 4*iso711_to_int(ZISOFS.hdr_size):
             raise IllegalZisofsFormat
 
-
         # Header size
         if header[12:13] != ZISOFS.hdr_size:
             raise IllegalZisofsFormat
@@ -101,7 +103,7 @@ class ZISOFS(commonZisofs):
         """
         docstring
         """
-        return Algorithm(1) # Force return ZLIB compressor
+        return Algorithm(1)  # Force return ZLIB compressor
 
     def __bytes__(self):
         header = bytearray()
@@ -143,7 +145,6 @@ class ZISOFSv2(commonZisofs):
         # Correct size
         if len(header) != 4*iso711_to_int(ZISOFSv2.hdr_size):
             raise IllegalZisofsFormat
-
 
         # Header size
         if header[9:10] != ZISOFSv2.hdr_size:
@@ -215,6 +216,10 @@ class FileObject:
     # Instance functions
 
     def __init__(self, source_file, alg=None, blocksize=None, isLegacy=None):
+
+        if Path(source_file).is_dir():
+            raise NotCompressedFile
+
         self.source_file = source_file
         self.precalculated_table = None
 
@@ -240,8 +245,12 @@ class FileObject:
                 hdr_obj = ZISOFS.from_header(header)
 
             self.header = hdr_obj
-            if self._get_numblocks() * self.header.pointers_size < 2*10**7:  # 20 MB size of Table as limit
+            # 5 MB size of Table (over 20gb file for 32kb block)
+            if self._get_numblocks() * self.header.pointers_size < 5*10**6:
                 self.precalculated_table = self._get_table_pointers()
+
+    def get_size(self):
+        return self.header.get_size()
 
     def get_chunks(self):
         """
@@ -259,12 +268,30 @@ class FileObject:
         """
         return self.header.get_algorithm()
 
-    def read_block(self, num, file_descriptor=None):
+    def fuse_read(self, fd, offset, length):
+        # We must to transparently return the data from a compressed file
+        # fd corresponds to source_file. TODO: do it directly from this class
+
+        # A compressed file
+
+        # offset = 37
+        # length = 99
+        # bs = 32
+        # total = 600
+        # numblocks = 18.75
+
+        block_start = math.ceil(offset / self.header.get_blocksize())
+        total_blocks = math.floor(length / self.header.get_blocksize())
+        data = self.read_block(block_start, count=total_blocks, file_descriptor=fd)
+
+        return data, block_start, total_blocks
+
+    def read_block(self, num, count=1, file_descriptor=None):
 
         valid_blocks = self._get_numblocks() - 1
 
-        if num >= valid_blocks:
-            raise ValueError
+        # if num >= valid_blocks:
+        #     raise ValueError
 
         psize = self.header.pointers_size  # Pointer size
 
@@ -275,28 +302,34 @@ class FileObject:
             src = open(self.source_file, 'rb')
 
         if self.precalculated_table:
-            start_offset = self.precalculated_table[num]
-            end_offset = self.precalculated_table[num + 1]
+            list_offset = self.precalculated_table[num:num + count + 1]
         else:
             # First, get the position and size of the desired block
             table_pos = len(self.header) + num * psize
             # Go to the table
             src.seek(table_pos)
 
-            start_offset = self.header.get_pointer_value(src.read(psize))
-            end_offset = self.header.get_pointer_value(src.read(psize))
+            list_offset = []
+            for _ in range(count):
+                list_offset.append(self.header.get_pointer_value(src.read(psize)))
 
         # Go to the actual data
-        if (end_offset - start_offset) != 0:
-            src.seek(start_offset)
-            data = src.read(end_offset - start_offset)
-        else:
-            if num == valid_blocks - 1: # Last one
-                # Last block will have different size
-                si = self.header.get_size() - self.header.get_blocksize() * (valid_blocks-1)
-                data = bytearray(si)
+        data = bytearray()
+        for idx, offset in enumerate(list_offset[:-1]):
+            total = list_offset[idx+1] - offset
+            if (total) != 0: # TODO: Improve list access?
+                src.seek(offset)
+                data += self.get_algorithm().data_decompress(
+                    src.read(total)
+                )
             else:
-                data = bytearray(self.header.get_blocksize())
+                # Empty block. Must return all zero
+                if num == valid_blocks - 1:  # Last one
+                    # Last block will have different size
+                    si = self.header.get_size() - self.header.get_blocksize() * (valid_blocks-1)
+                    data += bytearray(si)
+                else:
+                    data += bytearray(self.header.get_blocksize())
 
         if not file_descriptor:
             # It was our file descriptor. Close it
