@@ -17,7 +17,8 @@ def main(args=None):
 
     if opt.uncompress:
         if opt.fuse:
-            from mkzftree2.passthroughfs import mount_fuse
+            from mkzftree2.zisofuse import mount_fuse
+            print(f"Mounting {source} into {target}")
             mount_fuse(source, target)
         else:
             # Uncompress in_dir
@@ -32,8 +33,7 @@ def main(args=None):
                     opt.z, blocksize, opt.force, opt.legacy, opt.ignore_attributes)
 
     # Process
-    # d = FileObject.get_smallfiles()
-    print("Hola")
+    print("\nDone. Have a nice day :)")
 
 
 if __name__ == '__main__':

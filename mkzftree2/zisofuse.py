@@ -84,9 +84,6 @@ class Operations(pyfuse3.Operations):
         self._fileobject_map = dict()
         self._fileobject_path_map = dict()
 
-        self._blockscache_map = dict()
-        self._blocksindex_map = dict()
-
     def _inode_to_path(self, inode):
         try:
             val = self._inode_path_map[inode]
@@ -258,10 +255,6 @@ class Operations(pyfuse3.Operations):
             self._fileobject_map[fd] = fobj
             self._fileobject_path_map[file_path] = fobj
 
-            max_cache = int(2**23 / fobj.header.get_blocksize())
-            self._blockscache_map[fd] = deque(
-                [], max_cache)  # FIXME: Apropiate size
-            self._blocksindex_map[fd] = deque([], max_cache)
         except NotCompressedFile:
             # If file is not compressed, treat it as general case
             pass
@@ -277,69 +270,19 @@ class Operations(pyfuse3.Operations):
             os.lseek(fd, offset, os.SEEK_SET)
             log.debug('READ of %s, from %d with %d size', fd, offset, length)
             return os.read(fd, length)
-
-        block_start = math.ceil(
-            offset / self._fileobject_map[fd].header.get_blocksize())
-        total_blocks = math.ceil(
-            length / self._fileobject_map[fd].header.get_blocksize())
-
-        out_data = bytearray()
+        
         blocksize = self._fileobject_map[fd].header.get_blocksize()
 
-        idx_quee = self._blocksindex_map[fd]
-        cache_queu = self._blockscache_map[fd]
-
-        for bcount in range(total_blocks):
-            b = block_start + bcount
-            if b in idx_quee:
-                idx_data = idx_quee.index(b)
-                data = cache_queu[idx_data]
-
-                ## Do some temporal cache by moving the hit to the top of the queue
-                if idx_data != 0:
-                    # Move our target to the end
-                    idx_quee.rotate(len(idx_quee) - 1 - idx_data)
-                    cache_queu.rotate(len(cache_queu) - 1 - idx_data)
-
-                    # Append to first
-                    idx_quee.insert(len(idx_quee) - 1 - idx_data, idx_quee.pop())
-                    cache_queu.insert(len(cache_queu) - 1 -
-                                    idx_data, cache_queu.pop())
-
-                    # Reorder back
-                    idx_quee.rotate(-(len(idx_quee) - 1 - idx_data))
-                    cache_queu.rotate(-(len(cache_queu) - 1 - idx_data))
-
-            else:
-                # Cache hit error. Read from disk
-                cache_spacial = 3
-
-                if bcount + cache_spacial >= total_blocks:
-                    # Exceeded EOF. Readjust size
-                    cache_spacial = total_blocks - bcount
-                    assert(cache_spacial != 0)
+        block_start = math.ceil(
+            offset / blocksize)
+        total_blocks = math.ceil(
+            length / blocksize)
 
 
+        data_blocks = self._fileobject_map[fd].read_block(
+            block_start, file_descriptor=fd, count=total_blocks)
 
-                data_blocks = self._fileobject_map[fd].read_block(
-                    b, file_descriptor=fd, count=cache_spacial)
-
-                for i in reversed(range(cache_spacial)):
-                    block = data_blocks[i*blocksize:i*blocksize + blocksize]
-                    if i == 0:
-                        # What we really asked 
-                        data = block
-                    idx_quee.appendleft(b + i)
-                    cache_queu.appendleft(block)
-
-            if bcount == total_blocks - 1:  # Last element
-                last_size = length % self._fileobject_map[fd].header.get_blocksize(
-                )
-                out_data += data[0:last_size]
-            else:
-                out_data += data
-
-        return out_data
+        return data_blocks[0:length]
 
     async def release(self, fd):
         if self._fd_open_count[fd] > 1:
@@ -354,12 +297,11 @@ class Operations(pyfuse3.Operations):
         if fd in self._fileobject_map:
             del self._fileobject_map[fd]
             del self._fileobject_path_map[self._inode_to_path(inode)]
-            del self._blockscache_map[fd]
-            del self._blocksindex_map[fd]
         try:
             os.close(fd)
         except OSError as exc:
             raise FUSEError(exc.errno)
+
 
 def init_logging(debug=False):
     formatter = logging.Formatter('%(asctime)s.%(msecs)03d %(threadName)s: '
@@ -377,12 +319,12 @@ def init_logging(debug=False):
 
 
 def mount_fuse(source, mountpoint):
-    init_logging(True)
+    init_logging() # Nod debug for now
     operations = Operations(str(source))
 
     log.debug('Mounting...')
     fuse_options = set(pyfuse3.default_options)
-    fuse_options.add('fsname=passthroughfs')
+    fuse_options.add('fsname=zisofuse')
     # if options.debug_fuse:
     #     fuse_options.add('debug')
     pyfuse3.init(operations, str(mountpoint), fuse_options)
@@ -390,6 +332,9 @@ def mount_fuse(source, mountpoint):
     try:
         log.debug('Entering main loop..')
         trio.run(pyfuse3.main)
+    except KeyboardInterrupt:
+        pyfuse3.close(unmount=True)
+        return
     except:
         pyfuse3.close(unmount=True)
         raise
