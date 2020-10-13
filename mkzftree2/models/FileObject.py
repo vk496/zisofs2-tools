@@ -221,7 +221,6 @@ class FileObject:
             raise NotCompressedFile
 
         self.source_file = source_file
-        self.precalculated_table = None
 
         if all(v is not None for v in [alg, blocksize, isLegacy]):
             if isLegacy:
@@ -245,9 +244,6 @@ class FileObject:
                 hdr_obj = ZISOFS.from_header(header)
 
             self.header = hdr_obj
-            # 5 MB size of Table (over 20gb file for 32kb block)
-            if self._get_numblocks() * self.header.pointers_size < 5*10**6:
-                self.precalculated_table = self._get_table_pointers()
 
     def get_size(self):
         return self.header.get_size()
@@ -268,30 +264,23 @@ class FileObject:
         """
         return self.header.get_algorithm()
 
-    def fuse_read(self, fd, offset, length):
-        # We must to transparently return the data from a compressed file
-        # fd corresponds to source_file. TODO: do it directly from this class
-
-        # A compressed file
-
-        # offset = 37
-        # length = 99
-        # bs = 32
-        # total = 600
-        # numblocks = 18.75
-
-        block_start = math.ceil(offset / self.header.get_blocksize())
-        total_blocks = math.floor(length / self.header.get_blocksize())
-        data = self.read_block(block_start, count=total_blocks, file_descriptor=fd)
-
-        return data, block_start, total_blocks
-
     def read_block(self, num, count=1, file_descriptor=None):
+        def fd_seek(fd, offset):
+            if type(fd) == int:
+                return os.lseek(fd, offset, os.SEEK_SET)
+            else:
+                return fd.seek(offset)
+
+        def fd_read(fd, length):
+            if type(fd) == int:
+                return os.read(fd, length)
+            else:
+                return fd.read(length)
 
         valid_blocks = self._get_numblocks() - 1
 
-        # if num >= valid_blocks:
-        #     raise ValueError
+        if num >= valid_blocks:
+            return b''
 
         psize = self.header.pointers_size  # Pointer size
 
@@ -301,26 +290,23 @@ class FileObject:
         else:
             src = open(self.source_file, 'rb')
 
-        if self.precalculated_table:
-            list_offset = self.precalculated_table[num:num + count + 1]
-        else:
-            # First, get the position and size of the desired block
-            table_pos = len(self.header) + num * psize
-            # Go to the table
-            src.seek(table_pos)
+        # First, get the position and size of the desired block
+        table_pos = len(self.header) + num * psize
+        # Go to the table
+        fd_seek(src, table_pos)
 
-            list_offset = []
-            for _ in range(count):
-                list_offset.append(self.header.get_pointer_value(src.read(psize)))
+        list_offset = []
+        for _ in range(count+1):
+            list_offset.append(self.header.get_pointer_value(fd_read(src, psize)))
 
         # Go to the actual data
         data = bytearray()
         for idx, offset in enumerate(list_offset[:-1]):
             total = list_offset[idx+1] - offset
             if (total) != 0: # TODO: Improve list access?
-                src.seek(offset)
+                fd_seek(src, offset)
                 data += self.get_algorithm().data_decompress(
-                    src.read(total)
+                    fd_read(src, total)
                 )
             else:
                 # Empty block. Must return all zero
@@ -336,25 +322,6 @@ class FileObject:
             src.close()
 
         return data
-
-    def _get_table_pointers(self):
-        """
-        docstring
-        """
-        psize = self.header.pointers_size  # Pointer size
-        table = []
-        with open(self.source_file, 'rb') as src:
-            # First, get the position and size of the desired block
-
-            # Go to the table
-            src.seek(len(self.header))
-
-            # For all blocks
-            for _ in range(self._get_numblocks()):
-                start_offset = self.header.get_pointer_value(src.read(psize))
-                table.append(start_offset)
-
-        return table
 
     def _get_numblocks(self):
         """

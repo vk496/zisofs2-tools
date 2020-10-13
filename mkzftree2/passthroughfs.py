@@ -39,6 +39,20 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 
+import faulthandler
+from mkzftree2.utils import NotCompressedFile
+from mkzftree2.models.FileObject import FileObject
+import math
+from collections import deque
+import trio
+from collections import defaultdict
+from os import fsencode, fsdecode
+from pyfuse3 import FUSEError
+import stat as stat_m
+import logging
+import errno
+from argparse import ArgumentParser
+import pyfuse3
 import os
 import sys
 
@@ -46,31 +60,14 @@ import sys
 # to load the module from there first.
 basedir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), '..'))
 if (os.path.exists(os.path.join(basedir, 'setup.py')) and
-    os.path.exists(os.path.join(basedir, 'src', 'pyfuse3.pyx'))):
+        os.path.exists(os.path.join(basedir, 'src', 'pyfuse3.pyx'))):
     sys.path.insert(0, os.path.join(basedir, 'src'))
 
-import pyfuse3
-from argparse import ArgumentParser
-import errno
-import logging
-import stat as stat_m
-from pyfuse3 import FUSEError
-from os import fsencode, fsdecode
-from collections import defaultdict
-import trio
 
-
-from collections import deque
-import math
-from mkzftree2.models.FileObject import FileObject
-from mkzftree2.utils import NotCompressedFile
-
-
-
-import faulthandler
 faulthandler.enable()
 
 log = logging.getLogger(__name__)
+
 
 class Operations(pyfuse3.Operations):
 
@@ -78,12 +75,11 @@ class Operations(pyfuse3.Operations):
 
     def __init__(self, source):
         super().__init__()
-        self._inode_path_map = { pyfuse3.ROOT_INODE: source }
-        self._lookup_cnt = defaultdict(lambda : 0)
+        self._inode_path_map = {pyfuse3.ROOT_INODE: source}
+        self._lookup_cnt = defaultdict(lambda: 0)
         self._fd_inode_map = dict()
         self._inode_fd_map = dict()
         self._fd_open_count = dict()
-
 
         self._fileobject_map = dict()
         self._fileobject_path_map = dict()
@@ -115,7 +111,7 @@ class Operations(pyfuse3.Operations):
         if isinstance(val, set):
             val.add(path)
         elif val != path:
-            self._inode_path_map[inode] = { path, val }
+            self._inode_path_map[inode] = {path, val}
 
     async def forget(self, inode_list):
         for (inode, nlookup) in inode_list:
@@ -127,7 +123,7 @@ class Operations(pyfuse3.Operations):
             del self._lookup_cnt[inode]
             try:
                 del self._inode_path_map[inode]
-            except KeyError: # may have been deleted
+            except KeyError:  # may have been deleted
                 pass
 
     async def lookup(self, inode_p, name, ctx=None):
@@ -152,15 +148,16 @@ class Operations(pyfuse3.Operations):
         try:
             if fd is None:
                 stat = os.lstat(path)
-                try:
-                    total_size = FileObject(path).header.get_size()
-                except Exception as ex:
-                    log.debug(f"{ex}")
+                t_path = path
             else:
                 stat = os.fstat(fd)
-                if fd in self._fileobject_map:
-                    total_size = self._fileobject_map[fd].header.get_size()
-            
+                inode = self._fd_inode_map[fd]
+                t_path = self._inode_to_path(inode)
+
+            try:
+                total_size = FileObject(t_path).header.get_size()
+            except Exception as ex:
+                log.debug(f"{ex}")
         except OSError as exc:
             raise FUSEError(exc.errno)
 
@@ -178,7 +175,8 @@ class Operations(pyfuse3.Operations):
         entry.entry_timeout = 0
         entry.attr_timeout = 0
         entry.st_blksize = 512
-        entry.st_blocks = ((entry.st_size+entry.st_blksize-1) // entry.st_blksize)
+        entry.st_blocks = (
+            (entry.st_size+entry.st_blksize-1) // entry.st_blksize)
 
         return entry
 
@@ -215,7 +213,7 @@ class Operations(pyfuse3.Operations):
             if ino <= off:
                 continue
             if not pyfuse3.readdir_reply(
-                token, fsencode(name), attr, ino):
+                    token, fsencode(name), attr, ino):
                 break
             self._add_path(attr.st_ino, os.path.join(path, name))
 
@@ -259,8 +257,11 @@ class Operations(pyfuse3.Operations):
             fobj = FileObject(file_path)
             self._fileobject_map[fd] = fobj
             self._fileobject_path_map[file_path] = fobj
-            self._blockscache_map = deque([], 10) #FIXME: Apropiate size
-            self._blocksindex_map = deque([], 10) #FIXME: Apropiate size
+
+            max_cache = int(2**23 / fobj.header.get_blocksize())
+            self._blockscache_map[fd] = deque(
+                [], max_cache)  # FIXME: Apropiate size
+            self._blocksindex_map[fd] = deque([], max_cache)
         except NotCompressedFile:
             # If file is not compressed, treat it as general case
             pass
@@ -277,34 +278,68 @@ class Operations(pyfuse3.Operations):
             log.debug('READ of %s, from %d with %d size', fd, offset, length)
             return os.read(fd, length)
 
-
-        block_start = math.ceil(offset / self._fileobject_map[fd].header.get_blocksize())
-        total_blocks = math.floor(length / self._fileobject_map[fd].header.get_blocksize())
+        block_start = math.ceil(
+            offset / self._fileobject_map[fd].header.get_blocksize())
+        total_blocks = math.ceil(
+            length / self._fileobject_map[fd].header.get_blocksize())
 
         out_data = bytearray()
+        blocksize = self._fileobject_map[fd].header.get_blocksize()
 
+        idx_quee = self._blocksindex_map[fd]
+        cache_queu = self._blockscache_map[fd]
 
         for bcount in range(total_blocks):
             b = block_start + bcount
-            if b in self._blocksindex_map[fd]:
-                data = self._blockscache_map[fd][self._blocksindex_map[fd].index(b)]
-            else:
-                data = self._fileobject_map[fd].read_block(b, file_descriptor=fd)
-                self._blockscache_map[fd].appendleft(data)
-                self._blocksindex_map[fd].appendleft(b)
+            if b in idx_quee:
+                idx_data = idx_quee.index(b)
+                data = cache_queu[idx_data]
 
-            if bcount == total_blocks - 1: # Last element
-                last_size = length % self._fileobject_map[fd].header.get_blocksize()
+                ## Do some temporal cache by moving the hit to the top of the queue
+                if idx_data != 0:
+                    # Move our target to the end
+                    idx_quee.rotate(len(idx_quee) - 1 - idx_data)
+                    cache_queu.rotate(len(cache_queu) - 1 - idx_data)
+
+                    # Append to first
+                    idx_quee.insert(len(idx_quee) - 1 - idx_data, idx_quee.pop())
+                    cache_queu.insert(len(cache_queu) - 1 -
+                                    idx_data, cache_queu.pop())
+
+                    # Reorder back
+                    idx_quee.rotate(-(len(idx_quee) - 1 - idx_data))
+                    cache_queu.rotate(-(len(cache_queu) - 1 - idx_data))
+
+            else:
+                # Cache hit error. Read from disk
+                cache_spacial = 3
+
+                if bcount + cache_spacial >= total_blocks:
+                    # Exceeded EOF. Readjust size
+                    cache_spacial = total_blocks - bcount
+                    assert(cache_spacial != 0)
+
+
+
+                data_blocks = self._fileobject_map[fd].read_block(
+                    b, file_descriptor=fd, count=cache_spacial)
+
+                for i in reversed(range(cache_spacial)):
+                    block = data_blocks[i*blocksize:i*blocksize + blocksize]
+                    if i == 0:
+                        # What we really asked 
+                        data = block
+                    idx_quee.appendleft(b + i)
+                    cache_queu.appendleft(block)
+
+            if bcount == total_blocks - 1:  # Last element
+                last_size = length % self._fileobject_map[fd].header.get_blocksize(
+                )
                 out_data += data[0:last_size]
             else:
                 out_data += data
 
         return out_data
-
-        
-
-
-
 
     async def release(self, fd):
         if self._fd_open_count[fd] > 1:
@@ -316,10 +351,11 @@ class Operations(pyfuse3.Operations):
         del self._inode_fd_map[inode]
         del self._fd_inode_map[fd]
 
-        del self._fileobject_map[fd]
-        del self._fileobject_path_map[self._inode_to_path(inode)]
-        del self._blockscache_map
-        del self._blocksindex_map
+        if fd in self._fileobject_map:
+            del self._fileobject_map[fd]
+            del self._fileobject_path_map[self._inode_to_path(inode)]
+            del self._blockscache_map[fd]
+            del self._blocksindex_map[fd]
         try:
             os.close(fd)
         except OSError as exc:
@@ -340,43 +376,23 @@ def init_logging(debug=False):
     root_logger.addHandler(handler)
 
 
-def parse_args(args):
-    '''Parse command line'''
-
-    parser = ArgumentParser()
-
-    parser.add_argument('source', type=str,
-                        help='Directory tree to mirror')
-    parser.add_argument('mountpoint', type=str,
-                        help='Where to mount the file system')
-    parser.add_argument('--debug', action='store_true', default=False,
-                        help='Enable debugging output')
-    parser.add_argument('--debug-fuse', action='store_true', default=False,
-                        help='Enable FUSE debugging output')
-
-    return parser.parse_args(args)
-
-def main():
-    options = parse_args(sys.argv[1:])
-    init_logging(options.debug)
-    operations = Operations(options.source)
+def mount_fuse(source, mountpoint):
+    init_logging(True)
+    operations = Operations(str(source))
 
     log.debug('Mounting...')
     fuse_options = set(pyfuse3.default_options)
     fuse_options.add('fsname=passthroughfs')
-    if options.debug_fuse:
-        fuse_options.add('debug')
-    pyfuse3.init(operations, options.mountpoint, fuse_options)
+    # if options.debug_fuse:
+    #     fuse_options.add('debug')
+    pyfuse3.init(operations, str(mountpoint), fuse_options)
 
     try:
         log.debug('Entering main loop..')
         trio.run(pyfuse3.main)
     except:
-        pyfuse3.close(unmount=False)
+        pyfuse3.close(unmount=True)
         raise
 
     log.debug('Unmounting..')
     pyfuse3.close()
-
-if __name__ == '__main__':
-    main()

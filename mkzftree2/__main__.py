@@ -16,8 +16,12 @@ def main(args=None):
         pass
 
     if opt.uncompress:
-        # Uncompress in_dir
-        uncompress_files(source, target)
+        if opt.fuse:
+            from mkzftree2.passthroughfs import mount_fuse
+            mount_fuse(source, target)
+        else:
+            # Uncompress in_dir
+            uncompress_files(source, target)
     else:
         # Compress in_dir
 
